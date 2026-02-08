@@ -60,6 +60,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
           api.setToken(res.token);
           setUser(res.user);
+          // Redirect to main page after successful Google auth
+          if (window.location.pathname !== '/') {
+            window.history.replaceState(null, '', '/');
+          }
         }
       } catch (err) {
         console.error('Google redirect error:', err);

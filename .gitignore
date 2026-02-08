@@ -8,6 +8,7 @@ backend/.env
 *firebase-adminsdk*
 *-adminsdk-*.json
 client_secret_*.json
+social-3315a-*.json
 referece-ui/
 *.log
 backend.log
