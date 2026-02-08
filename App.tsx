@@ -919,7 +919,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Mobile Bottom Nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-[#0e0e11] border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-around px-2 py-1.5" style={{ paddingBottom: 'max(6px, env(safe-area-inset-bottom))' }}>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-[#0e0e11] border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-around px-2 py-1.5 pb-[max(6px,env(safe-area-inset-bottom))]">
         <button onClick={startNewChat} className="flex flex-col items-center space-y-0.5 px-3 py-1" aria-label="New chat">
           <PlusIcon className="w-5 h-5 text-zinc-500" />
           <span className="text-[8px] font-bold text-zinc-500 uppercase">New</span>
@@ -1068,7 +1068,7 @@ const App: React.FC = () => {
                       {pullProgress?.total && pullProgress.total > 0 && (
                         <div className="mt-2 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full h-1.5">
                           <div
-                            className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+                            className={`bg-blue-500 h-1.5 rounded-full transition-all duration-300`}
                             style={{ width: `${Math.round(((pullProgress.completed || 0) / pullProgress.total) * 100)}%` }}
                           ></div>
                         </div>

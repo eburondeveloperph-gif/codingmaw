@@ -79,7 +79,7 @@ export async function agentStream(
     method: 'POST',
     headers,
     body: JSON.stringify({
-      model: 'openclaw',
+      model: 'kimi-k2-thinking:cloud',
       stream: true,
       messages: [systemMessage, ...messages],
     }),

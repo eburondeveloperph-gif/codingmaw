@@ -17,6 +17,11 @@ export default defineConfig(({ mode }) => {
             target: 'http://localhost:5000',
             changeOrigin: true,
             rewrite: (path: string) => path.replace(/^\/asr/, ''),
+          },
+          '/openclaw': {
+            target: 'http://localhost:18789',
+            changeOrigin: true,
+            rewrite: (path: string) => path.replace(/^\/openclaw/, ''),
           }
         },
       },
