@@ -6,9 +6,10 @@ interface AuthPageProps {
   onLogin: (email: string, password: string) => Promise<void>;
   onRegister: (email: string, password: string, displayName?: string) => Promise<void>;
   onGoogleLogin: () => Promise<void>;
+  onSkip: () => void;
 }
 
-const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onRegister, onGoogleLogin }) => {
+const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onRegister, onGoogleLogin, onSkip }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -235,6 +236,14 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onRegister, onGoogleLogin 
                 <span>Sign in with Google</span>
               </>
             )}
+          </button>
+
+          {/* Skip */}
+          <button
+            onClick={onSkip}
+            className="w-full mt-3 py-3 bg-transparent hover:bg-zinc-800/50 text-zinc-500 hover:text-zinc-300 rounded-[6px] font-bold text-xs uppercase tracking-widest transition-all"
+          >
+            Skip for now
           </button>
 
           <div className="mt-6 text-center">

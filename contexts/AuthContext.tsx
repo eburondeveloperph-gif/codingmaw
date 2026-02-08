@@ -10,6 +10,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
+  skipAuth: () => void;
   logout: () => void;
   updateUser: (data: Partial<Pick<User, 'display_name' | 'avatar_url' | 'ollama_cloud_url' | 'ollama_api_key' | 'ollama_local_url'>>) => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -72,6 +73,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(res.user);
   };
 
+  const skipAuth = () => {
+    setUser({
+      id: 'guest',
+      email: 'guest@local',
+      display_name: 'Guest',
+      avatar_url: null,
+      ollama_cloud_url: null,
+      ollama_api_key: null,
+      ollama_local_url: null,
+      google_id: null,
+      google_scopes: null,
+      google_token_expiry: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as unknown as User);
+  };
+
   const logout = () => {
     api.clearToken();
     setUser(null);
@@ -91,6 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login: loginFn,
       register: registerFn,
       loginWithGoogle: loginWithGoogleFn,
+      skipAuth,
       logout,
       updateUser,
       refreshUser,

@@ -8,7 +8,7 @@ import GoogleServicesPage from './components/GoogleServicesPage';
 import { Logo } from './components/Logo';
 
 const AppShell: React.FC = () => {
-  const { user, isLoading, isAuthenticated, login, register, loginWithGoogle } = useAuth();
+  const { user, isLoading, isAuthenticated, login, register, loginWithGoogle, skipAuth } = useAuth();
 
   // Loading spinner while checking token
   if (isLoading) {
@@ -22,7 +22,7 @@ const AppShell: React.FC = () => {
 
   // Not authenticated — show auth page
   if (!isAuthenticated) {
-    return <AuthPage onLogin={login} onRegister={register} onGoogleLogin={loginWithGoogle} />;
+    return <AuthPage onLogin={login} onRegister={register} onGoogleLogin={loginWithGoogle} onSkip={skipAuth} />;
   }
 
   // Authenticated — route

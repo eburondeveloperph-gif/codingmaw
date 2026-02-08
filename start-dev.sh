@@ -12,20 +12,30 @@ echo -e "${BLUE}🚀 CodeMax Architect — Local Development Bootstrap${NC}"
 echo
 
 # Check if Docker is running — auto-start if not
+if ! command -v docker >/dev/null 2>&1; then
+  echo -e "${RED}❌ Docker command not found. Please install Docker Desktop.${NC}"
+  exit 1
+fi
+
 if ! docker info >/dev/null 2>&1; then
-  echo -e "${YELLOW}🐳 Docker is not running. Starting Docker Desktop...${NC}"
-  open -a Docker
-  echo -e "${YELLOW}⏳ Waiting for Docker to be ready...${NC}"
-  retries=0
-  until docker info >/dev/null 2>&1; do
-    sleep 2
-    retries=$((retries + 1))
-    if [ $retries -ge 60 ]; then
-      echo -e "${RED}❌ Docker did not start after 2 minutes. Please start it manually.${NC}"
-      exit 1
-    fi
-  done
-  echo -e "${GREEN}✅ Docker is running${NC}"
+  echo -e "${YELLOW}🐳 Docker is not running. Attempting to start Docker Desktop...${NC}"
+  if [ -d "/Applications/Docker.app" ]; then
+    open /Applications/Docker.app
+    echo -e "${YELLOW}⏳ Waiting for Docker to be ready...${NC}"
+    retries=0
+    until docker info >/dev/null 2>&1; do
+      sleep 2
+      retries=$((retries + 1))
+      if [ $retries -ge 60 ]; then
+        echo -e "${RED}❌ Docker did not start after 2 minutes. Please start it manually.${NC}"
+        exit 1
+      fi
+    done
+    echo -e "${GREEN}✅ Docker is running${NC}"
+  else
+    echo -e "${RED}❌ Docker Desktop app not found. Please install Docker Desktop from docker.com.${NC}"
+    exit 1
+  fi
 fi
 
 # Start PostgreSQL if not running
