@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 .drawing-card {
   top: var(--card-top);
   left: var(--card-left);
