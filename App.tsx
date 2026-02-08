@@ -62,6 +62,7 @@ const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [deepThink, setDeepThink] = useState(false);
+  const [appMode, setAppMode] = useState<'code' | 'chat'>('code');
 
   // Admin / Ollama States
   const [showAdmin, setShowAdmin] = useState(false);
@@ -250,7 +251,7 @@ const App: React.FC = () => {
             return updated;
           });
           aiText = chunk;
-        });
+        }, appMode);
       } else {
         await chatStream(activeModel, [...messages, userMessage], (chunk) => {
           setMessages(prev => {
@@ -259,7 +260,7 @@ const App: React.FC = () => {
             return updated;
           });
           aiText = chunk;
-        });
+        }, appMode);
       }
 
       // Persist AI response
@@ -269,7 +270,7 @@ const App: React.FC = () => {
         } catch { /* offline fallback */ }
       }
 
-      const html = extractHtml(aiText);
+      const html = appMode === 'code' ? extractHtml(aiText) : null;
       if (html) {
         let creationId: string | null = null;
         // Persist creation — only open preview if saved successfully
@@ -535,9 +536,13 @@ const App: React.FC = () => {
           {messages.length === 0 && (
             <div className="h-full flex flex-col items-center justify-center text-center py-20 animate-in fade-in duration-1000">
               <Logo className="w-12 h-12 mb-8 opacity-20 grayscale" />
-              <h2 className="text-2xl md:text-4xl font-bold tracking-tighter text-zinc-900 dark:text-white mb-6">CodeMax Architect.</h2>
+              <h2 className="text-2xl md:text-4xl font-bold tracking-tighter text-zinc-900 dark:text-white mb-6">{appMode === 'code' ? 'CodeMax Architect.' : 'Eburon AI'}</h2>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 max-w-md">{appMode === 'code' ? 'Generate production-ready apps, dashboards, and landing pages.' : 'Chat with Eburon AI — ask anything, brainstorm ideas, get answers.'}</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg mt-6 md:mt-10">
-                {["Build a full CRM dashboard", "Visualize an AI neural network", "Create a verified landing page", "Deep code audit"].map(item => (
+                {(appMode === 'code'
+                  ? ["Build a full CRM dashboard", "Visualize an AI neural network", "Create a verified landing page", "Deep code audit"]
+                  : ["Explain quantum computing simply", "Help me write a business plan", "What are the best productivity tips?", "Brainstorm startup ideas"]
+                ).map(item => (
                   <button key={item} onClick={() => setInput(item)} className="p-4 bg-zinc-50 dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 rounded-6 text-[11px] font-medium text-left hover:border-zinc-400 dark:hover:border-zinc-600 transition-all shadow-sm">
                     {item}
                   </button>
@@ -637,12 +642,24 @@ const App: React.FC = () => {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                placeholder="Message CodeMax Architect..."
+                placeholder={appMode === 'code' ? 'Message CodeMax Architect...' : 'Chat with Eburon AI...'}
                 className="w-full bg-transparent border-none focus:ring-0 text-zinc-900 dark:text-white placeholder-zinc-500 py-2 px-2 resize-none min-h-[50px] max-h-60 text-base font-light tracking-tight leading-relaxed"
                 rows={1}
               />
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800/50">
                 <div className="flex items-center space-x-2">
+                  {/* CodeMax Mode Toggle */}
+                  <button
+                    onClick={() => setAppMode(appMode === 'code' ? 'chat' : 'code')}
+                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
+                      appMode === 'code'
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20'
+                        : 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20'
+                    }`}
+                  >
+                    {appMode === 'code' ? <CodeBracketSquareIcon className="w-3.5 h-3.5" /> : <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />}
+                    <span>{appMode === 'code' ? 'Code' : 'Chat'}</span>
+                  </button>
                   <button
                     onClick={() => setDeepThink(!deepThink)}
                     className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${deepThink ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-transparent border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400'}`}
@@ -671,7 +688,7 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="text-center mt-3">
-              <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-[0.4em] opacity-40">Architect Core can err. Production verification suggested.</p>
+              <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-[0.4em] opacity-40">{appMode === 'code' ? 'Architect Core can err. Production verification suggested.' : 'Eburon AI — Built by eburon.ai'}</p>
             </div>
           </div>
         </div>
