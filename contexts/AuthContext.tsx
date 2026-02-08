@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as api from '../services/api';
 import type { User } from '../services/api';
-import { signInWithGooglePopup, signOutFirebase } from '../services/firebase';
+import { startGoogleSignIn, handleGoogleRedirectResult, signOutFirebase } from '../services/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -38,12 +38,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    const token = api.getToken();
-    if (token) {
-      refreshUser().finally(() => setIsLoading(false));
-    } else {
+    const init = async () => {
+      // Check for existing JWT token first
+      const token = api.getToken();
+      if (token) {
+        await refreshUser();
+        setIsLoading(false);
+        return;
+      }
+
+      // Check for Firebase Google redirect result
+      try {
+        const googleResult = await handleGoogleRedirectResult();
+        if (googleResult) {
+          const res = await api.googlePopupCallback({
+            access_token: googleResult.accessToken,
+            firebase_uid: googleResult.uid,
+            email: googleResult.email,
+            display_name: googleResult.displayName,
+            photo_url: googleResult.photoURL,
+          });
+          api.setToken(res.token);
+          setUser(res.user);
+        }
+      } catch (err) {
+        console.error('Google redirect error:', err);
+      }
+
       setIsLoading(false);
-    }
+    };
+
+    init();
   }, [refreshUser]);
 
   const loginFn = async (email: string, password: string) => {
@@ -59,16 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginWithGoogleFn = async () => {
-    const googleResult = await signInWithGooglePopup();
-    const res = await api.googlePopupCallback({
-      access_token: googleResult.idToken,
-      firebase_uid: googleResult.googleId,
-      email: googleResult.email,
-      display_name: googleResult.displayName,
-      photo_url: googleResult.photoURL,
-    });
-    api.setToken(res.token);
-    setUser(res.user);
+    await startGoogleSignIn();
   };
 
   const logout = () => {
