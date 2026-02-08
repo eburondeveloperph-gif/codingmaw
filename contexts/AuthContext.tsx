@@ -61,8 +61,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithGoogleFn = async () => {
     const googleResult = await signInWithGooglePopup();
     const res = await api.googlePopupCallback({
-      access_token: googleResult.accessToken,
-      firebase_uid: googleResult.uid,
+      access_token: googleResult.idToken,
+      firebase_uid: googleResult.googleId,
       email: googleResult.email,
       display_name: googleResult.displayName,
       photo_url: googleResult.photoURL,
