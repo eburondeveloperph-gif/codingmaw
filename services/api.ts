@@ -77,11 +77,6 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   });
 
-  if (res.status === 401) {
-    clearToken();
-    throw new Error('AUTH_EXPIRED');
-  }
-
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(errBody.error || `API error ${res.status}`);

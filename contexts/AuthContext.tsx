@@ -1,16 +1,26 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as api from '../services/api';
 import type { User } from '../services/api';
-import { signInWithGoogle, signOutFirebase } from '../services/firebase';
+
+const DEFAULT_USER: User = {
+  id: 'default',
+  email: 'default@eburon.local',
+  display_name: 'Eburon User',
+  avatar_url: null,
+  ollama_cloud_url: '',
+  ollama_api_key: '',
+  ollama_local_url: '',
+  google_id: null,
+  google_scopes: null,
+  google_token_expiry: null,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, displayName?: string) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
-  skipAuth: () => void;
   logout: () => void;
   updateUser: (data: Partial<Pick<User, 'display_name' | 'avatar_url' | 'ollama_cloud_url' | 'ollama_api_key' | 'ollama_local_url'>>) => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -25,91 +35,41 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(DEFAULT_USER);
+  const [isLoading, setIsLoading] = useState(false);
 
   const refreshUser = useCallback(async () => {
     try {
       const profile = await api.getProfile();
       setUser(profile);
     } catch {
-      api.clearToken();
-      setUser(null);
+      setUser(DEFAULT_USER);
     }
   }, []);
 
   useEffect(() => {
-    const init = async () => {
-      const token = api.getToken();
-      if (token) {
-        await refreshUser();
-      }
-      setIsLoading(false);
-    };
-    init();
+    refreshUser();
   }, [refreshUser]);
-
-  const loginFn = async (email: string, password: string) => {
-    const res = await api.login(email, password);
-    api.setToken(res.token);
-    setUser(res.user);
-  };
-
-  const registerFn = async (email: string, password: string, displayName?: string) => {
-    const res = await api.register(email, password, displayName);
-    api.setToken(res.token);
-    setUser(res.user);
-  };
-
-  const loginWithGoogleFn = async () => {
-    const googleResult = await signInWithGoogle();
-    const res = await api.firebaseAuth({
-      firebase_uid: googleResult.uid,
-      email: googleResult.email,
-      display_name: googleResult.displayName,
-      photo_url: googleResult.photoURL,
-    });
-    api.setToken(res.token);
-    setUser(res.user);
-  };
-
-  const skipAuth = () => {
-    setUser({
-      id: 'guest',
-      email: 'guest@local',
-      display_name: 'Guest',
-      avatar_url: null,
-      ollama_cloud_url: null,
-      ollama_api_key: null,
-      ollama_local_url: null,
-      google_id: null,
-      google_scopes: null,
-      google_token_expiry: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    } as unknown as User);
-  };
 
   const logout = () => {
     api.clearToken();
-    setUser(null);
-    signOutFirebase().catch(() => {});
+    setUser(DEFAULT_USER);
   };
 
   const updateUser = async (data: Partial<Pick<User, 'display_name' | 'avatar_url' | 'ollama_cloud_url' | 'ollama_api_key' | 'ollama_local_url'>>) => {
-    const updated = await api.updateProfile(data);
-    setUser(updated);
+    try {
+      const updated = await api.updateProfile(data);
+      setUser(updated);
+    } catch {
+      setUser(prev => prev ? { ...prev, ...data } as User : DEFAULT_USER);
+    }
   };
 
   return (
     <AuthContext.Provider value={{
       user,
       isLoading,
-      isAuthenticated: !!user,
-      login: loginFn,
-      register: registerFn,
-      loginWithGoogle: loginWithGoogleFn,
-      skipAuth,
+      isAuthenticated: true,
       logout,
       updateUser,
       refreshUser,

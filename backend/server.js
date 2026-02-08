@@ -28,20 +28,47 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// ── JWT Middleware ──────────────────────────────────────────
+// ── Default User Middleware (no auth required) ─────────────────
+
+let defaultUserId = null;
+
+async function ensureDefaultUser() {
+  if (defaultUserId) return defaultUserId;
+  try {
+    const existing = await pool.query("SELECT id FROM users WHERE email = 'default@eburon.local'");
+    if (existing.rows.length > 0) {
+      defaultUserId = existing.rows[0].id;
+    } else {
+      const result = await pool.query(
+        "INSERT INTO users (email, display_name) VALUES ('default@eburon.local', 'Eburon User') RETURNING id"
+      );
+      defaultUserId = result.rows[0].id;
+    }
+  } catch (err) {
+    console.error('Failed to ensure default user:', err.message);
+  }
+  return defaultUserId;
+}
 
 function authMiddleware(req, res, next) {
+  // If a JWT is provided, use it; otherwise fall back to default user
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Authentication required' });
+  if (header && header.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(header.split(' ')[1], JWT_SECRET);
+      req.userId = decoded.userId;
+      return next();
+    } catch { /* fall through to default user */ }
   }
-  try {
-    const decoded = jwt.verify(header.split(' ')[1], JWT_SECRET);
-    req.userId = decoded.userId;
+  if (defaultUserId) {
+    req.userId = defaultUserId;
+    return next();
+  }
+  ensureDefaultUser().then(id => {
+    if (!id) return res.status(500).json({ error: 'No default user available' });
+    req.userId = id;
     next();
-  } catch {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
+  }).catch(() => res.status(500).json({ error: 'Failed to resolve user' }));
 }
 
 // ── Health check (public) ──────────────────────────────────
@@ -391,6 +418,8 @@ app.delete('/api/creations/:id', authMiddleware, async (req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Eburon AI Backend running on port ${PORT}`);
+  await ensureDefaultUser();
+  console.log(`Default user ready (id: ${defaultUserId})`);
 });
