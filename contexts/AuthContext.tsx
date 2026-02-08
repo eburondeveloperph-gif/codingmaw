@@ -8,6 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
+  loginWithGoogle: (code: string, state?: string) => Promise<void>;
   logout: () => void;
   updateUser: (data: Partial<Pick<User, 'display_name' | 'avatar_url' | 'ollama_cloud_url' | 'ollama_api_key' | 'ollama_local_url'>>) => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -56,6 +57,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(res.user);
   };
 
+  const loginWithGoogleFn = async (code: string, state?: string) => {
+    const res = await api.googleCallback(code, state);
+    api.setToken(res.token);
+    setUser(res.user);
+  };
+
   const logout = () => {
     api.clearToken();
     setUser(null);
@@ -73,6 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isAuthenticated: !!user,
       login: loginFn,
       register: registerFn,
+      loginWithGoogle: loginWithGoogleFn,
       logout,
       updateUser,
       refreshUser,

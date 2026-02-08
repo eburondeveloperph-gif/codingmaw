@@ -543,6 +543,13 @@ const App: React.FC = () => {
             <CpuChipIcon className="w-4 h-4" />
             <span>Orbit Agent</span>
           </a>
+          <a
+            href="/services"
+            className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-6 hover:bg-emerald-500/10 hover:text-emerald-500 transition-colors"
+          >
+            <SignalIcon className="w-4 h-4" />
+            <span>Google Services</span>
+          </a>
           {isAdmin && (
             <button
               onClick={() => setShowAdmin(true)}

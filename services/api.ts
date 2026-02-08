@@ -26,8 +26,23 @@ export interface User {
   ollama_cloud_url: string;
   ollama_api_key: string;
   ollama_local_url: string;
+  google_id: string | null;
+  google_scopes: string | null;
+  google_token_expiry: string | null;
   created_at: string;
   updated_at?: string;
+}
+
+export interface GoogleServicesStatus {
+  connected: boolean;
+  expired: boolean | null;
+  scopes: string[];
+  services: {
+    gmail: boolean;
+    sheets: boolean;
+    chat: boolean;
+    drive: boolean;
+  };
 }
 
 export interface AuthResponse {
@@ -109,6 +124,29 @@ export const updateProfile = (data: Partial<Pick<User, 'display_name' | 'avatar_
     method: 'PATCH',
     body: JSON.stringify(data),
   });
+
+// ── Google OAuth ────────────────────────────────────────────
+
+export const getGoogleAuthUrl = (scopes?: string) =>
+  request<{ url: string }>(`/auth/google/url${scopes ? `?scopes=${scopes}` : ''}`);
+
+export const googleCallback = (code: string, state?: string) =>
+  request<AuthResponse & { linked?: boolean }>('/auth/google/callback', {
+    method: 'POST',
+    body: JSON.stringify({ code, state }),
+  });
+
+export const getGoogleStatus = () =>
+  request<GoogleServicesStatus>('/auth/google/status');
+
+export const connectGoogleServices = (services: string[]) =>
+  request<{ url: string }>('/auth/google/connect', {
+    method: 'POST',
+    body: JSON.stringify({ services }),
+  });
+
+export const disconnectGoogle = () =>
+  request<User>('/auth/google/disconnect', { method: 'POST' });
 
 // ── Conversations ──────────────────────────────────────────
 

@@ -59,6 +59,11 @@ fi
 
 # Start backend in background
 echo -e "${YELLOW}🔧 Starting backend API...${NC}"
+# Load Google OAuth secrets from .env if it exists
+if [ -f "backend/.env" ]; then
+  set -a; source backend/.env; set +a
+fi
+export GOOGLE_REDIRECT_URI="${GOOGLE_REDIRECT_URI:-http://localhost:5173/auth/google/callback}"
 (cd backend && npm run dev > ../backend.log 2>&1) &
 BACKEND_PID=$!
 

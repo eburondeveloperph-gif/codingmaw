@@ -4,10 +4,12 @@ import AuthPage from './components/AuthPage';
 import App from './App';
 import PreviewPage from './components/PreviewPage';
 import AgentPage from './components/AgentPage';
+import GoogleCallback from './components/GoogleCallback';
+import GoogleServicesPage from './components/GoogleServicesPage';
 import { Logo } from './components/Logo';
 
 const AppShell: React.FC = () => {
-  const { user, isLoading, isAuthenticated, login, register } = useAuth();
+  const { user, isLoading, isAuthenticated, login, register, loginWithGoogle } = useAuth();
 
   // Loading spinner while checking token
   if (isLoading) {
@@ -19,15 +21,21 @@ const AppShell: React.FC = () => {
     );
   }
 
+  // Google OAuth callback must work regardless of auth state
+  const path = window.location.pathname;
+  if (path.startsWith('/auth/google/callback')) {
+    return <GoogleCallback />;
+  }
+
   // Not authenticated — show auth page
   if (!isAuthenticated) {
-    return <AuthPage onLogin={login} onRegister={register} />;
+    return <AuthPage onLogin={login} onRegister={register} onGoogleLogin={loginWithGoogle} />;
   }
 
   // Authenticated — route
-  const path = window.location.pathname;
   if (path.startsWith('/preview')) return <PreviewPage />;
   if (path.startsWith('/agent/')) return <AgentPage />;
+  if (path.startsWith('/services')) return <GoogleServicesPage />;
   return <App />;
 };
 

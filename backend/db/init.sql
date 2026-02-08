@@ -4,12 +4,17 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255),
   display_name VARCHAR(100) NOT NULL DEFAULT '',
   avatar_url TEXT,
   ollama_cloud_url VARCHAR(500) DEFAULT 'https://api.ollama.com',
   ollama_api_key VARCHAR(500) DEFAULT '',
   ollama_local_url VARCHAR(500) DEFAULT 'http://localhost:11434',
+  google_id VARCHAR(255) UNIQUE,
+  google_access_token TEXT,
+  google_refresh_token TEXT,
+  google_token_expiry TIMESTAMPTZ,
+  google_scopes TEXT DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -44,6 +49,7 @@ CREATE TABLE creations (
 );
 
 CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_google_id ON users(google_id);
 CREATE INDEX idx_conversations_user ON conversations(user_id, updated_at DESC);
 CREATE INDEX idx_messages_conversation ON messages(conversation_id, sort_order);
 CREATE INDEX idx_creations_user ON creations(user_id, created_at DESC);
