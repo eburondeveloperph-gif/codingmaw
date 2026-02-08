@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as api from '../services/api';
 import type { User } from '../services/api';
-import { startGoogleSignIn, handleGoogleRedirectResult, signOutFirebase } from '../services/firebase';
+import { signInWithGoogle, signOutFirebase } from '../services/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -39,38 +39,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const init = async () => {
-      // Check for existing JWT token first
       const token = api.getToken();
       if (token) {
         await refreshUser();
-        setIsLoading(false);
-        return;
       }
-
-      // Check for Firebase Google redirect result
-      try {
-        const googleResult = await handleGoogleRedirectResult();
-        if (googleResult) {
-          const res = await api.firebaseAuth({
-            firebase_uid: googleResult.uid,
-            email: googleResult.email,
-            display_name: googleResult.displayName,
-            photo_url: googleResult.photoURL,
-          });
-          api.setToken(res.token);
-          setUser(res.user);
-          // Redirect to main page after successful Google auth
-          if (window.location.pathname !== '/') {
-            window.history.replaceState(null, '', '/');
-          }
-        }
-      } catch (err) {
-        console.error('Google redirect error:', err);
-      }
-
       setIsLoading(false);
     };
-
     init();
   }, [refreshUser]);
 
@@ -87,7 +61,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginWithGoogleFn = async () => {
-    await startGoogleSignIn();
+    const googleResult = await signInWithGoogle();
+    const res = await api.firebaseAuth({
+      firebase_uid: googleResult.uid,
+      email: googleResult.email,
+      display_name: googleResult.displayName,
+      photo_url: googleResult.photoURL,
+    });
+    api.setToken(res.token);
+    setUser(res.user);
   };
 
   const logout = () => {

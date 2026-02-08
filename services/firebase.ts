@@ -2,8 +2,7 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signOut,
 } from 'firebase/auth';
 
@@ -26,28 +25,15 @@ googleProvider.addScope('email');
 googleProvider.addScope('profile');
 
 export interface GoogleAuthResult {
-  accessToken: string;
-  idToken: string;
   email: string;
   displayName: string;
   photoURL: string | null;
   uid: string;
 }
 
-export async function startGoogleSignIn(): Promise<void> {
-  await signInWithRedirect(auth, googleProvider);
-}
-
-export async function handleGoogleRedirectResult(): Promise<GoogleAuthResult | null> {
-  const result = await getRedirectResult(auth);
-  if (!result) return null;
-
-  const credential = GoogleAuthProvider.credentialFromResult(result);
-  if (!credential) return null;
-
+export async function signInWithGoogle(): Promise<GoogleAuthResult> {
+  const result = await signInWithPopup(auth, googleProvider);
   return {
-    accessToken: credential.accessToken || '',
-    idToken: credential.idToken || '',
     email: result.user.email || '',
     displayName: result.user.displayName || '',
     photoURL: result.user.photoURL,
