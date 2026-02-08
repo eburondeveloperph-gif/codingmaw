@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Logo } from './components/Logo';
 import { Creation } from './components/CreationHistory';
 import { MODELS, CHAT_MODEL, CODE_MODEL, Message, chatStream, chatOllamaStream, EBURON_MODELS, DEFAULT_MODEL, type EburonModel } from './services/eburon';
+import { transcribeAudio, checkAsrHealth } from './services/asr';
 import * as api from './services/api';
 import { googleSearch, formatSearchResultsForPrompt } from './services/search';
 import { listLocalModels, pullModel, deleteModel, searchModels, formatSize, POPULAR_MODELS, type OllamaModel, type PullProgress } from './services/ollamaModels';
@@ -37,7 +38,9 @@ import {
   AdjustmentsHorizontalIcon,
   ArrowDownTrayIcon,
   TrashIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  MicrophoneIcon,
+  StopIcon
 } from '@heroicons/react/24/outline';
 
 declare const marked: any;
@@ -87,6 +90,13 @@ const App: React.FC = () => {
   const [searchActive, setSearchActive] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
+  // STT / Microphone States
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [asrAvailable, setAsrAvailable] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
   // Persistence States
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -107,7 +117,7 @@ const App: React.FC = () => {
   }, [theme]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: isGenerating ? 'auto' : 'smooth' });
   }, [messages, isGenerating]);
 
   useEffect(() => {
@@ -240,6 +250,47 @@ const App: React.FC = () => {
     setOllamaUrl(localUrl);
     detectOllamaModels(localUrl);
   }, [user?.ollama_local_url]);
+
+  // Check Eburon ASR availability on mount
+  useEffect(() => {
+    checkAsrHealth().then(setAsrAvailable);
+  }, []);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4' });
+      audioChunksRef.current = [];
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+        if (audioBlob.size < 100) return;
+        setIsTranscribing(true);
+        try {
+          const text = await transcribeAudio(audioBlob);
+          if (text) setInput(prev => prev ? `${prev} ${text}` : text);
+        } catch (err) {
+          console.error('Eburon ASR error:', err);
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start(250);
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Microphone access denied:', err);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    setIsRecording(false);
+  };
 
   const handleSearchSend = async () => {
     const promptText = input;
@@ -813,6 +864,31 @@ const App: React.FC = () => {
                   <button onClick={() => fileInputRef.current?.click()} disabled={isGenerating} className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors disabled:opacity-30" aria-label="Upload image">
                     <PhotoIcon className="w-5 h-5" />
                   </button>
+                  {/* Eburon ASR Microphone */}
+                  {isRecording ? (
+                    <button
+                      onClick={stopRecording}
+                      className="p-2.5 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-xl active:scale-90 animate-pulse"
+                      aria-label="Stop recording"
+                      title="Stop recording — transcribe speech"
+                    >
+                      <StopIcon className="w-5 h-5" />
+                    </button>
+                  ) : isTranscribing ? (
+                    <button disabled className="p-2.5 bg-purple-500/80 text-white rounded-full opacity-80" aria-label="Transcribing">
+                      <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={startRecording}
+                      disabled={isGenerating}
+                      className="p-2 text-zinc-500 hover:text-purple-500 dark:hover:text-purple-400 transition-colors disabled:opacity-30"
+                      aria-label="Voice input — Eburon ASR"
+                      title="Voice input (Eburon ASR)"
+                    >
+                      <MicrophoneIcon className="w-5 h-5" />
+                    </button>
+                  )}
                   {isGenerating ? (
                     <button
                       onClick={handleStop}

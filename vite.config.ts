@@ -12,6 +12,11 @@ export default defineConfig(({ mode }) => {
           '/api': {
             target: 'http://localhost:4000',
             changeOrigin: true,
+          },
+          '/asr': {
+            target: 'http://localhost:5000',
+            changeOrigin: true,
+            rewrite: (path: string) => path.replace(/^\/asr/, ''),
           }
         },
       },
