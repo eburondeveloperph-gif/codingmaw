@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   db:
     image: postgres:16-alpine
@@ -66,43 +64,11 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
-    entrypoint: ["sh", "-c", "ollama pull kimi-k2-thinking:cloud && echo 'Model ready'"]
+    entrypoint: ["sh", "-c", "ollama pull kimi-k2-thinking:cloud && ollama pull deepseek-v3.1:671b-cloud && echo 'Models ready'"]
     environment:
       OLLAMA_HOST: http://ollama:11434
     restart: "no"
 
-  openclaw-gateway:
-    image: openclaw:local
-    restart: unless-stopped
-    depends_on:
-      ollama:
-        condition: service_healthy
-    ports:
-      - "18789:18789"
-    volumes:
-      - openclaw_config:/root/.openclaw
-      - openclaw_workspace:/root/openclaw/workspace
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-      OPENCLAW_MODEL: kimi-k2-thinking:cloud
-      OPENCLAW_GATEWAY_PORT: "18789"
-
-  openclaw-cli:
-    image: openclaw:local
-    depends_on:
-      - openclaw-gateway
-    volumes:
-      - openclaw_config:/root/.openclaw
-      - openclaw_workspace:/root/openclaw/workspace
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-      OPENCLAW_MODEL: kimi-k2-thinking:cloud
-    entrypoint: ["openclaw"]
-    profiles:
-      - cli
-
 volumes:
   pgdata:
   ollama_data:
-  openclaw_config:
-  openclaw_workspace:
