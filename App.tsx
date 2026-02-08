@@ -27,6 +27,7 @@ import {
   ArrowUpIcon,
   ChatBubbleLeftRightIcon,
   ShareIcon,
+  EyeIcon,
   ArrowPathIcon,
   PhotoIcon,
   SignalIcon,
@@ -281,7 +282,6 @@ const App: React.FC = () => {
         if (creationId) {
           const newCreation = { id: creationId, name: promptText.slice(0, 30) + '...', html, timestamp: new Date() };
           setCreationHistory(prev => [newCreation, ...prev]);
-          window.open(`/preview/${creationId}`, '_blank');
         }
       }
     } catch (err) {
@@ -296,6 +296,16 @@ const App: React.FC = () => {
     return match ? match[0] : null;
   };
 
+  const splitResponse = (text: string): { explanation: string; code: string | null } => {
+    const html = extractHtml(text);
+    if (!html) return { explanation: text, code: null };
+    const idx = text.indexOf(html);
+    const before = text.slice(0, idx).trim();
+    const after = text.slice(idx + html.length).trim();
+    const explanation = [before, after].filter(Boolean).join('\n\n');
+    return { explanation, code: html };
+  };
+
   const handleCopyCode = (text: string, index: number) => {
     navigator.clipboard.writeText(text);
     setCopiedIndex(index);
@@ -305,8 +315,11 @@ const App: React.FC = () => {
   return (
     <div className="flex h-[100dvh] bg-white dark:bg-[#0e0e11] text-zinc-900 dark:text-[#d1d1d1] font-sans transition-colors duration-300">
 
+      {/* Mobile sidebar backdrop */}
+      {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />}
+
       {/* Sidebar */}
-      <aside className={`flex flex-col border-r border-zinc-200 dark:border-zinc-800 transition-all duration-300 ${sidebarOpen ? 'w-72' : 'w-0 overflow-hidden'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-40 md:relative w-72 flex flex-col border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#0e0e11] transition-all duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-0 md:overflow-hidden'}`}>
         <div className="p-4 flex flex-col space-y-1">
           <div className="flex items-center justify-between mb-4">
             <div className="flex flex-col">
@@ -465,11 +478,11 @@ const App: React.FC = () => {
       </aside>
 
       {/* Main Container */}
-      <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0e0e11] relative">
+      <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0e0e11] relative pb-16 md:pb-0">
         {!sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
-            className="absolute left-4 top-4 z-50 p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-6 border border-zinc-200 dark:border-zinc-800 shadow-sm"
+            className="absolute left-3 top-3 z-20 p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-6 border border-zinc-200 dark:border-zinc-800 shadow-sm"
             aria-label="Open sidebar"
           >
             <ChatBubbleLeftRightIcon className="w-5 h-5" />
@@ -477,7 +490,7 @@ const App: React.FC = () => {
         )}
 
         {/* Model Selector Top Bar */}
-        <header className="h-14 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center px-6 shrink-0 bg-white/50 dark:bg-[#0e0e11]/50 backdrop-blur-md z-30">
+        <header className="h-12 md:h-14 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center px-3 md:px-6 shrink-0 bg-white/50 dark:bg-[#0e0e11]/50 backdrop-blur-md z-20">
           <div className="flex items-center space-x-4">
             <div className="relative group">
               <button className="flex items-center space-x-2 px-3 py-1.5 rounded-6 bg-zinc-50 dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 text-xs font-bold uppercase tracking-tight hover:border-zinc-400 dark:hover:border-zinc-600 transition-all">
@@ -518,12 +531,12 @@ const App: React.FC = () => {
         </header>
 
         {/* Chat Stream */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-8 space-y-10 scrollbar-hide max-w-4xl mx-auto w-full">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-8 space-y-6 md:space-y-10 scrollbar-hide max-w-4xl mx-auto w-full">
           {messages.length === 0 && (
             <div className="h-full flex flex-col items-center justify-center text-center py-20 animate-in fade-in duration-1000">
               <Logo className="w-12 h-12 mb-8 opacity-20 grayscale" />
-              <h2 className="text-4xl font-bold tracking-tighter text-zinc-900 dark:text-white mb-6">CodeMax Architect.</h2>
-              <div className="grid grid-cols-2 gap-3 w-full max-w-lg mt-10">
+              <h2 className="text-2xl md:text-4xl font-bold tracking-tighter text-zinc-900 dark:text-white mb-6">CodeMax Architect.</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg mt-6 md:mt-10">
                 {["Build a full CRM dashboard", "Visualize an AI neural network", "Create a verified landing page", "Deep code audit"].map(item => (
                   <button key={item} onClick={() => setInput(item)} className="p-4 bg-zinc-50 dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 rounded-6 text-[11px] font-medium text-left hover:border-zinc-400 dark:hover:border-zinc-600 transition-all shadow-sm">
                     {item}
@@ -533,66 +546,91 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {messages.map((msg, i) => (
-            <div key={i} className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-500`}>
-              <div className={`max-w-[95%] sm:max-w-[85%] space-y-4`}>
-                <div className={`relative ${msg.role === 'user' ? 'bg-zinc-100 dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 px-6 py-4 rounded-6' : 'bg-transparent'}`}>
-                  {msg.parts.map((part, pi) => (
-                    <div key={pi} className="space-y-4">
-                      {part.text && (
-                        <div className="font-sans relative">
-                          <div className={`prose prose-sm max-w-none ${theme === 'dark' ? 'prose-invert' : 'prose-zinc'} leading-relaxed`} dangerouslySetInnerHTML={{ __html: typeof marked !== 'undefined' ? marked.parse(part.text) : part.text }} />
+          {messages.map((msg, i) => {
+            const isStreaming = isGenerating && i === messages.length - 1 && msg.role === 'model';
+            return (
+              <div key={i} className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in duration-500`}>
+                <div className="max-w-[95%] md:max-w-[85%] space-y-4">
+                  <div className={`relative ${msg.role === 'user' ? 'bg-zinc-100 dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 px-4 md:px-6 py-3 md:py-4 rounded-2xl' : 'bg-transparent'}`}>
+                    {msg.parts.map((part, pi) => {
+                      if (!part.text) return null;
 
-                          {msg.role === 'model' && extractHtml(part.text) && (
-                            <div className="mt-8 flex items-center justify-between p-5 bg-zinc-50 dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 rounded-6 shadow-xl">
-                              <div className="flex items-center space-x-4">
-                                <div className="p-3 bg-blue-500/10 rounded-6 text-blue-500">
-                                  <CodeBracketSquareIcon className="w-6 h-6" />
-                                </div>
-                                <div>
-                                  <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-900 dark:text-white">Architecture Deployment</h4>
-                                  <p className="text-[9px] text-zinc-500 uppercase font-mono tracking-tighter">Verified Integrity Block: v1.3.2</p>
+                      {/* During streaming: show raw monospace text, no HTML rendering */}
+                      if (isStreaming) {
+                        return (
+                          <div key={pi} className="relative">
+                            <pre className="font-mono text-xs md:text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap break-words max-h-[60vh] overflow-y-auto scrollbar-hide">
+                              {part.text}
+                            </pre>
+                            <span className="inline-block w-1.5 h-4 bg-blue-500 ml-0.5 animate-pulse rounded-sm align-text-bottom" />
+                          </div>
+                        );
+                      }
+
+                      {/* Completed message: split into explanation + code box */}
+                      const { explanation, code } = splitResponse(part.text);
+                      return (
+                        <div key={pi} className="space-y-4">
+                          {explanation && (
+                            <div className={`prose prose-sm max-w-none ${theme === 'dark' ? 'prose-invert' : 'prose-zinc'} leading-relaxed`}
+                              dangerouslySetInnerHTML={{ __html: typeof marked !== 'undefined' ? marked.parse(explanation) : explanation }} />
+                          )}
+
+                          {code && (
+                            <div className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700/50 shadow-lg">
+                              {/* Code box header with Copy + Preview */}
+                              <div className="flex items-center justify-between px-3 md:px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700/50">
+                                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center space-x-2">
+                                  <CodeBracketSquareIcon className="w-3.5 h-3.5" />
+                                  <span>Generated Code</span>
+                                </span>
+                                <div className="flex items-center space-x-1">
+                                  <button
+                                    onClick={() => { navigator.clipboard.writeText(code); setCopiedIndex(i); setTimeout(() => setCopiedIndex(null), 2000); }}
+                                    className="flex items-center space-x-1.5 px-2.5 py-1.5 text-[10px] font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-white rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
+                                    aria-label="Copy code"
+                                  >
+                                    {copiedIndex === i ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <ClipboardIcon className="w-3.5 h-3.5" />}
+                                    <span className="hidden sm:inline">{copiedIndex === i ? 'Copied!' : 'Copy'}</span>
+                                  </button>
+                                  <button
+                                    onClick={() => { const blob = new Blob([code], {type:'text/html'}); window.open(URL.createObjectURL(blob), '_blank'); }}
+                                    className="flex items-center space-x-1.5 px-2.5 py-1.5 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-all shadow-sm"
+                                    aria-label="Preview code"
+                                  >
+                                    <EyeIcon className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Preview</span>
+                                  </button>
                                 </div>
                               </div>
-                              <button onClick={() => { const h = extractHtml(part.text!); if (h) { const blob = new Blob([h], {type:'text/html'}); window.open(URL.createObjectURL(blob), '_blank'); } }} className="px-6 py-3 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-6 font-black text-[10px] uppercase tracking-tighter hover:opacity-90 transition-all shadow-lg active:scale-95">Preview Build</button>
+                              {/* Scrollable code display */}
+                              <pre className="overflow-auto bg-zinc-50 dark:bg-[#0a0a0a] p-3 md:p-4 text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400 max-h-80 scrollbar-hide font-mono">
+                                <code>{code}</code>
+                              </pre>
+                            </div>
+                          )}
+
+                          {/* Copy button for non-code responses */}
+                          {!code && msg.role === 'model' && (
+                            <div className="flex items-center space-x-4 mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                              <button onClick={() => handleCopyCode(part.text!, i)} className="flex items-center space-x-1.5 text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
+                                {copiedIndex === i ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <ClipboardIcon className="w-3.5 h-3.5" />}
+                                <span className="text-[10px] font-bold uppercase">{copiedIndex === i ? 'Copied!' : 'Copy'}</span>
+                              </button>
                             </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  ))}
-
-                  {msg.role === 'model' && !isGenerating && (
-                    <div className="flex items-center space-x-6 mt-8 text-zinc-400 border-t border-zinc-100 dark:border-zinc-800 pt-4">
-                      <button onClick={() => handleCopyCode(msg.parts[0].text!, i)} className="flex items-center space-x-2 hover:text-zinc-900 dark:hover:text-white transition-colors">
-                        {copiedIndex === i ? <CheckIcon className="w-4 h-4 text-emerald-500" /> : <ClipboardIcon className="w-4 h-4" />}
-                        <span className="text-[10px] font-bold uppercase">Copy Source</span>
-                      </button>
-                      <button className="flex items-center space-x-2 hover:text-zinc-900 dark:hover:text-white transition-colors">
-                        <ArrowPathIcon className="w-4 h-4" />
-                        <span className="text-[10px] font-bold uppercase">Rebuild</span>
-                      </button>
-                    </div>
-                  )}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-
-          {isGenerating && (
-            <div className="flex justify-start">
-              <div className="flex items-center space-x-3 px-6 py-3 bg-zinc-50 dark:bg-[#1c1c1f] rounded-6 border border-zinc-200 dark:border-zinc-800 shadow-xl">
-                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"></div>
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 ml-2">Synthesizing</span>
-              </div>
-            </div>
-          )}
+            );
+          })}
         </div>
 
         {/* Floating Input Pill Area */}
-        <div className="px-6 pb-8 shrink-0">
+        <div className="px-3 md:px-6 pb-20 md:pb-8 shrink-0">
           <div className="max-w-3xl mx-auto">
             <div className="relative bg-zinc-50 dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 rounded-[24px] p-4 shadow-2xl transition-all focus-within:ring-1 focus-within:ring-zinc-400 dark:focus-within:ring-zinc-600 focus-within:bg-white dark:focus-within:bg-[#202024]">
               <textarea
@@ -638,6 +676,30 @@ const App: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Mobile Bottom Nav */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-[#0e0e11] border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-around px-2 py-1.5" style={{ paddingBottom: 'max(6px, env(safe-area-inset-bottom))' }}>
+        <button onClick={startNewChat} className="flex flex-col items-center space-y-0.5 px-3 py-1" aria-label="New chat">
+          <PlusIcon className="w-5 h-5 text-zinc-500" />
+          <span className="text-[8px] font-bold text-zinc-500 uppercase">New</span>
+        </button>
+        <button onClick={() => { setSidebarOpen(true); setSidebarTab('chats'); }} className="flex flex-col items-center space-y-0.5 px-3 py-1" aria-label="Chats">
+          <ChatBubbleLeftRightIcon className="w-5 h-5 text-zinc-500" />
+          <span className="text-[8px] font-bold text-zinc-500 uppercase">Chats</span>
+        </button>
+        <button onClick={() => { setSidebarOpen(true); setSidebarTab('creations'); }} className="flex flex-col items-center space-y-0.5 px-3 py-1" aria-label="Creations">
+          <CodeBracketSquareIcon className="w-5 h-5 text-zinc-500" />
+          <span className="text-[8px] font-bold text-zinc-500 uppercase">Builds</span>
+        </button>
+        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="flex flex-col items-center space-y-0.5 px-3 py-1" aria-label="Toggle theme">
+          {theme === 'dark' ? <SunIcon className="w-5 h-5 text-zinc-500" /> : <MoonIcon className="w-5 h-5 text-zinc-500" />}
+          <span className="text-[8px] font-bold text-zinc-500 uppercase">Theme</span>
+        </button>
+        <button onClick={() => setShowProfile(true)} className="flex flex-col items-center space-y-0.5 px-3 py-1" aria-label="Profile">
+          <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[8px] font-bold text-white">{(user?.display_name || user?.email || '?').charAt(0).toUpperCase()}</div>
+          <span className="text-[8px] font-bold text-zinc-500 uppercase">Me</span>
+        </button>
+      </nav>
 
       {/* Admin Settings Modal */}
       {showAdmin && (
