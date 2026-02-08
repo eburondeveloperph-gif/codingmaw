@@ -11,10 +11,21 @@ NC='\033[0m'
 echo -e "${BLUE}🚀 CodeMax Architect — Local Development Bootstrap${NC}"
 echo
 
-# Check if Docker is running
+# Check if Docker is running — auto-start if not
 if ! docker info >/dev/null 2>&1; then
-  echo -e "${RED}❌ Docker is not running. Please start Docker Desktop.${NC}"
-  exit 1
+  echo -e "${YELLOW}🐳 Docker is not running. Starting Docker Desktop...${NC}"
+  open -a Docker
+  echo -e "${YELLOW}⏳ Waiting for Docker to be ready...${NC}"
+  retries=0
+  until docker info >/dev/null 2>&1; do
+    sleep 2
+    retries=$((retries + 1))
+    if [ $retries -ge 60 ]; then
+      echo -e "${RED}❌ Docker did not start after 2 minutes. Please start it manually.${NC}"
+      exit 1
+    fi
+  done
+  echo -e "${GREEN}✅ Docker is running${NC}"
 fi
 
 # Start PostgreSQL if not running
@@ -59,11 +70,10 @@ fi
 
 # Start backend in background
 echo -e "${YELLOW}🔧 Starting backend API...${NC}"
-# Load Google OAuth secrets from .env if it exists
+# Load backend env if it exists
 if [ -f "backend/.env" ]; then
   set -a; source backend/.env; set +a
 fi
-export GOOGLE_REDIRECT_URI="${GOOGLE_REDIRECT_URI:-http://localhost:5173/auth/google/callback}"
 (cd backend && npm run dev > ../backend.log 2>&1) &
 BACKEND_PID=$!
 
@@ -78,10 +88,10 @@ echo -e "${GREEN}✅ Backend API ready at http://localhost:4000${NC}"
 echo -e "${YELLOW}🎨 Starting frontend dev server...${NC}"
 echo
 echo -e "${GREEN}🎉 Development environment is ready!${NC}"
-echo -e "${BLUE}📍 Frontend:  http://localhost:5173${NC}"
+echo -e "${BLUE}📍 Frontend:  http://localhost:3000${NC}"
 echo -e "${BLUE}📍 Backend:   http://localhost:4000${NC}"
 echo -e "${BLUE}📍 Ollama:    http://localhost:11434${NC}"
-echo -e "${BLUE}📍 Preview:   http://localhost:5173/preview${NC}"
+echo -e "${BLUE}📍 Preview:   http://localhost:3000/preview${NC}"
 echo
 echo -e "${YELLOW}Press Ctrl+C to stop all servers${NC}"
 
