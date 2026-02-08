@@ -270,18 +270,19 @@ const App: React.FC = () => {
 
       const html = extractHtml(aiText);
       if (html) {
-        let creationId: string = crypto.randomUUID();
-        // Persist creation
+        let creationId: string | null = null;
+        // Persist creation — only open preview if saved successfully
         if (dbConnected) {
           try {
             const saved = await api.createCreation({ name: promptText.slice(0, 30) + '...', html, conversation_id: convId || undefined });
             creationId = saved.id;
           } catch { /* offline fallback */ }
         }
-        const newCreation = { id: creationId, name: promptText.slice(0, 30) + '...', html, timestamp: new Date() };
-        setCreationHistory(prev => [newCreation, ...prev]);
-        // Open in /preview page instead of inline overlay
-        window.open(`/preview/${creationId}`, '_blank');
+        if (creationId) {
+          const newCreation = { id: creationId, name: promptText.slice(0, 30) + '...', html, timestamp: new Date() };
+          setCreationHistory(prev => [newCreation, ...prev]);
+          window.open(`/preview/${creationId}`, '_blank');
+        }
       }
     } catch (err) {
       setMessages(prev => [...prev, { role: 'model', parts: [{ text: `System execution failure: ${err instanceof Error ? err.message : String(err)}` }] }]);

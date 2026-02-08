@@ -29,6 +29,7 @@ const PreviewPage: React.FC = () => {
   const [activeId, setActiveId] = useState('');
   const [viewMode, setViewMode] = useState<ViewportMode>('desktop');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -45,10 +46,14 @@ const PreviewPage: React.FC = () => {
         const pathParts = window.location.pathname.split('/').filter(Boolean);
         if (pathParts.length >= 2 && pathParts[0] === 'preview') {
           const id = pathParts[1];
-          const full = await api.getCreation(id);
-          setActiveHtml(full.html);
-          setActiveName(full.name);
-          setActiveId(full.id);
+          try {
+            const full = await api.getCreation(id);
+            setActiveHtml(full.html);
+            setActiveName(full.name);
+            setActiveId(full.id);
+          } catch {
+            setLoadError(`Creation not found: ${id}`);
+          }
         } else if (list.length > 0) {
           const full = await api.getCreation(list[0].id);
           setActiveHtml(full.html);
@@ -56,7 +61,7 @@ const PreviewPage: React.FC = () => {
           setActiveId(full.id);
         }
       } catch {
-        // DB not available
+        setLoadError('Could not connect to database');
       } finally {
         setLoading(false);
       }
@@ -193,6 +198,13 @@ const PreviewPage: React.FC = () => {
           ) : activeHtml ? (
             <div className={`h-full w-full ${getViewportWidth()} bg-white shadow-2xl rounded-[6px] overflow-hidden transition-all duration-500 border border-zinc-200 dark:border-white/5 mx-auto`}>
               <iframe title="Preview Sandbox" srcDoc={activeHtml} className="w-full h-full border-none" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" />
+            </div>
+          ) : loadError ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-700">
+              <CodeBracketIcon className="w-16 h-16 mb-4 opacity-20" />
+              <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-red-400">Preview Unavailable</p>
+              <p className="text-[9px] mt-2 opacity-60">{loadError}</p>
+              <a href="/" className="mt-4 px-4 py-2 text-[10px] font-bold uppercase tracking-widest bg-blue-600 text-white rounded-[6px] hover:bg-blue-700 transition-all">Back to Chat</a>
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-700">
