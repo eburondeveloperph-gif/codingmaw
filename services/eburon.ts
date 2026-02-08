@@ -408,7 +408,8 @@ export async function chatStream(
   modelName: string,
   history: Message[],
   onChunk: (text: string) => void,
-  mode: 'code' | 'chat' = 'code'
+  mode: 'code' | 'chat' = 'code',
+  signal?: AbortSignal
 ) {
   const apiKey = import.meta.env.VITE_OLLAMA_API_KEY?.trim();
   if (!apiKey) {
@@ -437,7 +438,8 @@ export async function chatStream(
         ...messages
       ],
       stream: true
-    })
+    }),
+    signal
   });
 
   if (!response.ok) {
@@ -480,12 +482,13 @@ export async function chatOllamaStream(
   modelName: string,
   history: Message[],
   onChunk: (text: string) => void,
-  mode: 'code' | 'chat' = 'code'
+  mode: 'code' | 'chat' = 'code',
+  signal?: AbortSignal
 ) {
   // Pass through to the cloud implementation if URL suggests cloud, otherwise standard local logic
   const cloudUrl = import.meta.env.VITE_OLLAMA_CLOUD_URL?.trim() || 'https://api.ollama.com';
   if (url === cloudUrl || url.includes('api.ollama.com') || url.includes('ollama.com')) {
-    return chatStream(modelName, history, onChunk, mode);
+    return chatStream(modelName, history, onChunk, mode, signal);
   }
 
   const messages = history.map(msg => ({
@@ -503,7 +506,8 @@ export async function chatOllamaStream(
         ...messages
       ],
       stream: true
-    })
+    }),
+    signal
   });
 
   if (!response.body) throw new Error("Ollama stream failed");

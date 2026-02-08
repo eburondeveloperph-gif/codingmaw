@@ -97,6 +97,7 @@ const App: React.FC = () => {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -260,9 +261,20 @@ const App: React.FC = () => {
     }
   };
 
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsGenerating(false);
+  };
+
   const handleSend = async (overridePrompt?: string) => {
     const promptText = overridePrompt || input;
     if (!promptText.trim() && !pendingImage) return;
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const userMessage: Message = {
       role: 'user',
@@ -312,7 +324,7 @@ const App: React.FC = () => {
             return updated;
           });
           aiText = chunk;
-        }, appMode);
+        }, appMode, controller.signal);
       } else {
         await chatStream(effectiveModel, [...messages, userMessage], (chunk) => {
           setMessages(prev => {
@@ -321,7 +333,7 @@ const App: React.FC = () => {
             return updated;
           });
           aiText = chunk;
-        }, appMode);
+        }, appMode, controller.signal);
       }
 
       // Persist AI response
@@ -347,8 +359,13 @@ const App: React.FC = () => {
         }
       }
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'model', parts: [{ text: `System execution failure: ${err instanceof Error ? err.message : String(err)}` }] }]);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        // User stopped generation — no error message needed
+      } else {
+        setMessages(prev => [...prev, { role: 'model', parts: [{ text: `System execution failure: ${err instanceof Error ? err.message : String(err)}` }] }]);
+      }
     } finally {
+      abortControllerRef.current = null;
       setIsGenerating(false);
     }
   };
@@ -700,21 +717,36 @@ const App: React.FC = () => {
         {/* Floating Input Pill Area */}
         <div className="px-3 md:px-6 pb-20 md:pb-8 shrink-0">
           <div className="max-w-3xl mx-auto">
-            <div className="relative bg-zinc-50 dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 rounded-[24px] p-4 shadow-2xl transition-all focus-within:ring-1 focus-within:ring-zinc-400 dark:focus-within:ring-zinc-600 focus-within:bg-white dark:focus-within:bg-[#202024]">
+            <div className={`relative bg-zinc-50 dark:bg-[#1c1c1f] border rounded-[24px] p-4 shadow-2xl transition-all ${isGenerating ? 'border-blue-500/30 ring-1 ring-blue-500/20' : 'border-zinc-200 dark:border-zinc-800 focus-within:ring-1 focus-within:ring-zinc-400 dark:focus-within:ring-zinc-600 focus-within:bg-white dark:focus-within:bg-[#202024]'}`}>
+              {/* Loading indicator overlay inside textarea area */}
+              {isGenerating && (
+                <div className="absolute top-4 left-4 right-4 flex items-center space-x-3 pointer-events-none z-10">
+                  <div className="flex items-center space-x-2">
+                    <div className="flex space-x-1">
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce delay-0"></span>
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce delay-150"></span>
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce delay-300"></span>
+                    </div>
+                    <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{appMode === 'code' ? 'Generating code...' : 'Thinking...'}</span>
+                  </div>
+                </div>
+              )}
               <textarea
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                placeholder={appMode === 'code' ? 'Message CodeMax Architect...' : 'Chat with Eburon AI...'}
-                className="w-full bg-transparent border-none focus:ring-0 text-zinc-900 dark:text-white placeholder-zinc-500 py-2 px-2 resize-none min-h-[50px] max-h-60 text-base font-light tracking-tight leading-relaxed"
+                onChange={(e) => { if (!isGenerating) setInput(e.target.value); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isGenerating) handleSend(); } }}
+                placeholder={isGenerating ? '' : (appMode === 'code' ? 'Message CodeMax Architect...' : 'Chat with Eburon AI...')}
+                disabled={isGenerating}
+                className={`w-full bg-transparent border-none focus:ring-0 py-2 px-2 resize-none min-h-[50px] max-h-60 text-base font-light tracking-tight leading-relaxed ${isGenerating ? 'text-transparent cursor-not-allowed select-none' : 'text-zinc-900 dark:text-white placeholder-zinc-500'}`}
                 rows={1}
               />
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800/50">
                 <div className="flex items-center space-x-2">
                   {/* CodeMax Mode Toggle */}
                   <button
-                    onClick={() => setAppMode(appMode === 'code' ? 'chat' : 'code')}
-                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${
+                    onClick={() => { if (!isGenerating) setAppMode(appMode === 'code' ? 'chat' : 'code'); }}
+                    disabled={isGenerating}
+                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${
                       appMode === 'code'
                         ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20'
                         : 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20'
@@ -724,32 +756,45 @@ const App: React.FC = () => {
                     <span>{appMode === 'code' ? 'Code' : 'Chat'}</span>
                   </button>
                   <button
-                    onClick={() => setDeepThink(!deepThink)}
-                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${deepThink ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-transparent border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400'}`}
+                    onClick={() => { if (!isGenerating) setDeepThink(!deepThink); }}
+                    disabled={isGenerating}
+                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${deepThink ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-transparent border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400'}`}
                   >
                     <CommandLineIcon className="w-3.5 h-3.5" />
                     <span>DeepThink</span>
                   </button>
                   <button
-                    onClick={() => setSearchActive(!searchActive)}
-                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all ${searchActive ? 'bg-amber-600 border-amber-600 text-white shadow-lg shadow-amber-600/20' : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400'}`}
+                    onClick={() => { if (!isGenerating) setSearchActive(!searchActive); }}
+                    disabled={isGenerating}
+                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${searchActive ? 'bg-amber-600 border-amber-600 text-white shadow-lg shadow-amber-600/20' : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400'}`}
                   >
                     <MagnifyingGlassIcon className="w-3.5 h-3.5" />
                     <span>Search</span>
                   </button>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <button onClick={() => fileInputRef.current?.click()} className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors" aria-label="Upload image">
+                  <button onClick={() => fileInputRef.current?.click()} disabled={isGenerating} className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors disabled:opacity-30" aria-label="Upload image">
                     <PhotoIcon className="w-5 h-5" />
                   </button>
-                  <button
-                    onClick={() => searchActive ? handleSearchSend() : handleSend()}
-                    disabled={isGenerating || isSearching || !input.trim()}
-                    className={`p-2.5 text-white disabled:opacity-20 rounded-full transition-all shadow-xl active:scale-90 ${searchActive ? 'bg-amber-600' : 'bg-zinc-900 dark:bg-[#34343a]'}`}
-                    aria-label={searchActive ? 'Search and send' : 'Send message'}
-                  >
-                    {isSearching ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : searchActive ? <MagnifyingGlassIcon className="w-5 h-5" /> : <ArrowUpIcon className="w-5 h-5" />}
-                  </button>
+                  {isGenerating ? (
+                    <button
+                      onClick={handleStop}
+                      className="p-2.5 bg-red-600 hover:bg-red-700 text-white rounded-full transition-all shadow-xl active:scale-90 animate-pulse"
+                      aria-label="Stop generation"
+                      title="Stop generation"
+                    >
+                      <XMarkIcon className="w-5 h-5" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => searchActive ? handleSearchSend() : handleSend()}
+                      disabled={isSearching || !input.trim()}
+                      className={`p-2.5 text-white disabled:opacity-20 rounded-full transition-all shadow-xl active:scale-90 ${searchActive ? 'bg-amber-600' : 'bg-zinc-900 dark:bg-[#34343a]'}`}
+                      aria-label={searchActive ? 'Search and send' : 'Send message'}
+                    >
+                      {isSearching ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : searchActive ? <MagnifyingGlassIcon className="w-5 h-5" /> : <ArrowUpIcon className="w-5 h-5" />}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
