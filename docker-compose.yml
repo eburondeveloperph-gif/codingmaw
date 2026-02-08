@@ -33,6 +33,7 @@ services:
       DB_PASSWORD: codemax_secret
       PORT: 4000
       JWT_SECRET: eburon-codemax-production-secret-change-me
+      OLLAMA_HOST: http://ollama:11434
     ports:
       - "4000:4000"
 
@@ -46,5 +47,62 @@ services:
     ports:
       - "8080:80"
 
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["sh", "-c", "ollama pull kimi-k2-thinking:cloud && echo 'Model ready'"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    restart: "no"
+
+  openclaw-gateway:
+    image: openclaw:local
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+    ports:
+      - "18789:18789"
+    volumes:
+      - openclaw_config:/root/.openclaw
+      - openclaw_workspace:/root/openclaw/workspace
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OPENCLAW_MODEL: kimi-k2-thinking:cloud
+      OPENCLAW_GATEWAY_PORT: "18789"
+
+  openclaw-cli:
+    image: openclaw:local
+    depends_on:
+      - openclaw-gateway
+    volumes:
+      - openclaw_config:/root/.openclaw
+      - openclaw_workspace:/root/openclaw/workspace
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OPENCLAW_MODEL: kimi-k2-thinking:cloud
+    entrypoint: ["openclaw"]
+    profiles:
+      - cli
+
 volumes:
   pgdata:
+  ollama_data:
+  openclaw_config:
+  openclaw_workspace:

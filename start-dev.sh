@@ -33,6 +33,19 @@ until docker compose exec -T db pg_isready -U codemax >/dev/null 2>&1; do
 done
 echo -e "${GREEN}✅ PostgreSQL is ready${NC}"
 
+# Start Ollama if not running
+if ! docker compose ps ollama | grep -q "Up"; then
+  echo -e "${YELLOW}🤖 Starting Ollama container...${NC}"
+  docker compose up ollama -d
+  echo -e "${GREEN}✅ Ollama started${NC}"
+else
+  echo -e "${GREEN}✅ Ollama already running${NC}"
+fi
+
+# Pull model in background
+echo -e "${YELLOW}📥 Pulling kimi-k2-thinking:cloud model (background)...${NC}"
+docker compose up ollama-pull -d 2>/dev/null || true
+
 # Install dependencies if needed
 if [ ! -d "node_modules" ]; then
   echo -e "${YELLOW}📦 Installing frontend dependencies...${NC}"
@@ -60,9 +73,10 @@ echo -e "${GREEN}✅ Backend API ready at http://localhost:4000${NC}"
 echo -e "${YELLOW}🎨 Starting frontend dev server...${NC}"
 echo
 echo -e "${GREEN}🎉 Development environment is ready!${NC}"
-echo -e "${BLUE}📍 Frontend: http://localhost:5173${NC}"
-echo -e "${BLUE}📍 Backend:  http://localhost:4000${NC}"
-echo -e "${BLUE}📍 Preview:  http://localhost:5173/preview${NC}"
+echo -e "${BLUE}📍 Frontend:  http://localhost:5173${NC}"
+echo -e "${BLUE}📍 Backend:   http://localhost:4000${NC}"
+echo -e "${BLUE}📍 Ollama:    http://localhost:11434${NC}"
+echo -e "${BLUE}📍 Preview:   http://localhost:5173/preview${NC}"
 echo
 echo -e "${YELLOW}Press Ctrl+C to stop all servers${NC}"
 
