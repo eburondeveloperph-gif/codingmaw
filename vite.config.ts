@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
             changeOrigin: true,
           },
           '/asr': {
-            target: 'http://localhost:5000',
+            target: 'http://localhost:5100',
             changeOrigin: true,
             rewrite: (path: string) => path.replace(/^\/asr/, ''),
           },

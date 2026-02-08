@@ -3,7 +3,7 @@
  * Sends recorded audio to the Eburon ASR backend (Voxtral Mini) for transcription.
  */
 
-const ASR_URL = import.meta.env.VITE_ASR_URL || 'http://localhost:5000';
+const ASR_URL = import.meta.env.VITE_ASR_URL || 'http://localhost:5100';
 
 export interface TranscriptionResult {
   text: string;
