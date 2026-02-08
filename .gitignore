@@ -1,7 +1,12 @@
-node_modules
-dist
+node_modules/
+dist/
 npm-cache
+.env
 .env.local
+backend/node_modules/
+backend/.env
+referece-ui/
 *.log
+backend.log
 .DS_Store
 .vite
