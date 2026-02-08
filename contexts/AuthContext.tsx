@@ -51,8 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const googleResult = await handleGoogleRedirectResult();
         if (googleResult) {
-          const res = await api.googlePopupCallback({
-            access_token: googleResult.accessToken,
+          const res = await api.firebaseAuth({
             firebase_uid: googleResult.uid,
             email: googleResult.email,
             display_name: googleResult.displayName,

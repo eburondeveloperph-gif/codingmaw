@@ -33,18 +33,6 @@ export interface User {
   updated_at?: string;
 }
 
-export interface GoogleServicesStatus {
-  connected: boolean;
-  expired: boolean | null;
-  scopes: string[];
-  services: {
-    gmail: boolean;
-    sheets: boolean;
-    chat: boolean;
-    drive: boolean;
-  };
-}
-
 export interface AuthResponse {
   token: string;
   user: User;
@@ -125,19 +113,9 @@ export const updateProfile = (data: Partial<Pick<User, 'display_name' | 'avatar_
     body: JSON.stringify(data),
   });
 
-// ── Google OAuth ────────────────────────────────────────────
+// ── Firebase Google Auth ─────────────────────────────────────
 
-export const getGoogleAuthUrl = (scopes?: string) =>
-  request<{ url: string }>(`/auth/google/url${scopes ? `?scopes=${scopes}` : ''}`);
-
-export const googleCallback = (code: string, state?: string) =>
-  request<AuthResponse & { linked?: boolean }>('/auth/google/callback', {
-    method: 'POST',
-    body: JSON.stringify({ code, state }),
-  });
-
-export const googlePopupCallback = (data: {
-  access_token: string;
+export const firebaseAuth = (data: {
   firebase_uid: string;
   email: string;
   display_name: string;
@@ -149,13 +127,7 @@ export const googlePopupCallback = (data: {
   });
 
 export const getGoogleStatus = () =>
-  request<GoogleServicesStatus>('/auth/google/status');
-
-export const connectGoogleServices = (services: string[]) =>
-  request<{ url: string }>('/auth/google/connect', {
-    method: 'POST',
-    body: JSON.stringify({ services }),
-  });
+  request<{ connected: boolean }>('/auth/google/status');
 
 export const disconnectGoogle = () =>
   request<User>('/auth/google/disconnect', { method: 'POST' });

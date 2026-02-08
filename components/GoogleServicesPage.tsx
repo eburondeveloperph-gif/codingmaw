@@ -2,68 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { Logo } from './Logo';
 import { useAuth } from '../contexts/AuthContext';
 import * as api from '../services/api';
-import type { GoogleServicesStatus } from '../services/api';
 import {
   HomeIcon,
   SunIcon,
   MoonIcon,
   CheckCircleIcon,
   XCircleIcon,
-  ArrowPathIcon,
-  LinkIcon,
   ShieldCheckIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
-interface ServiceDef {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  color: string;
-  bgColor: string;
-}
-
-const SERVICES: ServiceDef[] = [
-  {
-    id: 'gmail',
-    name: 'Gmail',
-    description: 'Read and send emails through your Gmail account',
-    icon: '📧',
-    color: 'text-red-500',
-    bgColor: 'bg-red-500/10',
-  },
-  {
-    id: 'sheets',
-    name: 'Google Sheets',
-    description: 'Access and edit your Google Spreadsheets',
-    icon: '📊',
-    color: 'text-emerald-500',
-    bgColor: 'bg-emerald-500/10',
-  },
-  {
-    id: 'chat',
-    name: 'Google Chat',
-    description: 'Read messages and spaces in Google Chat',
-    icon: '💬',
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-500/10',
-  },
-  {
-    id: 'drive',
-    name: 'Google Drive',
-    description: 'Browse and read files from your Google Drive',
-    icon: '📁',
-    color: 'text-amber-500',
-    bgColor: 'bg-amber-500/10',
-  },
+const SERVICES = [
+  { name: 'Gmail', description: 'Read and send emails', icon: '📧', bgColor: 'bg-red-500/10' },
+  { name: 'Google Sheets', description: 'Access spreadsheets', icon: '📊', bgColor: 'bg-emerald-500/10' },
+  { name: 'Google Chat', description: 'Read messages and spaces', icon: '💬', bgColor: 'bg-blue-500/10' },
+  { name: 'Google Drive', description: 'Browse and read files', icon: '📁', bgColor: 'bg-amber-500/10' },
 ];
 
 const GoogleServicesPage: React.FC = () => {
   const { user, refreshUser } = useAuth();
-  const [status, setStatus] = useState<GoogleServicesStatus | null>(null);
+  const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [connectingServices, setConnectingServices] = useState<string[]>([]);
   const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -75,34 +34,12 @@ const GoogleServicesPage: React.FC = () => {
     try { localStorage.setItem('codemax-theme', theme); } catch {}
   }, [theme]);
 
-  const fetchStatus = async () => {
-    try {
-      const s = await api.getGoogleStatus();
-      setStatus(s);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load Google services status');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchStatus(); }, []);
-
-  const handleConnect = async (serviceIds: string[]) => {
-    setError('');
-    setConnectingServices(serviceIds);
-    try {
-      const { url } = await api.connectGoogleServices(serviceIds);
-      window.location.href = url;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect services');
-      setConnectingServices([]);
-    }
-  };
-
-  const handleConnectAll = () => {
-    handleConnect(SERVICES.map(s => s.id));
-  };
+  useEffect(() => {
+    api.getGoogleStatus()
+      .then(s => setConnected(s.connected))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleDisconnect = async () => {
     if (!confirm('Disconnect your Google account? You can reconnect anytime.')) return;
@@ -111,7 +48,7 @@ const GoogleServicesPage: React.FC = () => {
     try {
       await api.disconnectGoogle();
       await refreshUser();
-      await fetchStatus();
+      setConnected(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to disconnect');
     } finally {
@@ -119,11 +56,8 @@ const GoogleServicesPage: React.FC = () => {
     }
   };
 
-  const isConnected = status?.connected ?? false;
-
   return (
     <div className="min-h-[100dvh] bg-white dark:bg-[#0e0e11] text-zinc-900 dark:text-white">
-      {/* Header */}
       <header className="border-b border-zinc-200 dark:border-zinc-800/50 bg-white/80 dark:bg-[#0e0e11]/80 backdrop-blur-xl sticky top-0 z-30">
         <div className="max-w-3xl mx-auto flex items-center justify-between px-4 md:px-6 h-14">
           <div className="flex items-center space-x-3">
@@ -145,7 +79,6 @@ const GoogleServicesPage: React.FC = () => {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 md:px-6 py-8">
-        {/* Hero */}
         <div className="text-center mb-10">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 via-red-500 to-yellow-500 flex items-center justify-center mx-auto mb-5 shadow-2xl">
             <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
@@ -157,7 +90,7 @@ const GoogleServicesPage: React.FC = () => {
           </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-2">Google Services</h1>
           <p className="text-zinc-500 text-sm max-w-md mx-auto">
-            Connect your Google account to use Gmail, Sheets, Chat, and Drive directly within Eburon AI.
+            Your Google account connection for Gmail, Sheets, Chat, and Drive within Eburon AI.
           </p>
         </div>
 
@@ -175,114 +108,73 @@ const GoogleServicesPage: React.FC = () => {
               </div>
             )}
 
-            {/* Connection status card */}
-            <div className={`mb-8 p-5 rounded-2xl border ${isConnected ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800'}`}>
+            <div className={`mb-8 p-5 rounded-2xl border ${connected ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  {isConnected ? (
+                  {connected ? (
                     <CheckCircleIcon className="w-6 h-6 text-emerald-500" />
                   ) : (
                     <XCircleIcon className="w-6 h-6 text-zinc-400" />
                   )}
                   <div>
                     <h3 className="text-sm font-bold">
-                      {isConnected ? 'Google Account Connected' : 'Google Account Not Connected'}
+                      {connected ? 'Google Account Connected' : 'Not Connected'}
                     </h3>
                     <p className="text-[11px] text-zinc-500">
-                      {isConnected
+                      {connected
                         ? `Signed in as ${user?.email || 'unknown'}`
-                        : 'Connect your Google account to enable services'}
+                        : 'Sign in with Google from the login page to connect'}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  {isConnected ? (
-                    <>
-                      {status?.expired && (
-                        <span className="px-2 py-1 bg-amber-500/10 text-amber-500 rounded-full text-[9px] font-bold uppercase tracking-widest">Token Expired</span>
-                      )}
-                      <button
-                        onClick={handleDisconnect}
-                        disabled={disconnecting}
-                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50"
-                      >
-                        {disconnecting ? 'Disconnecting...' : 'Disconnect'}
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={handleConnectAll}
-                      disabled={connectingServices.length > 0}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center space-x-2"
-                    >
-                      {connectingServices.length > 0 ? (
-                        <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <LinkIcon className="w-3.5 h-3.5" />
-                      )}
-                      <span>Connect Google Account</span>
-                    </button>
-                  )}
-                </div>
+                {connected && (
+                  <button
+                    onClick={handleDisconnect}
+                    disabled={disconnecting}
+                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50"
+                  >
+                    {disconnecting ? 'Disconnecting...' : 'Disconnect'}
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Services grid */}
             <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4">Available Services</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-              {SERVICES.map((service) => {
-                const isServiceConnected = isConnected && status?.services?.[service.id as keyof typeof status.services];
-                const isConnecting = connectingServices.includes(service.id);
-
-                return (
-                  <div
-                    key={service.id}
-                    className={`relative p-5 rounded-2xl border transition-all ${
-                      isServiceConnected
-                        ? 'bg-emerald-500/5 border-emerald-500/20'
-                        : 'bg-zinc-50 dark:bg-[#161619] border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className={`w-10 h-10 rounded-xl ${service.bgColor} flex items-center justify-center text-lg`}>
-                        {service.icon}
-                      </div>
-                      {isServiceConnected ? (
-                        <span className="flex items-center space-x-1 px-2 py-0.5 bg-emerald-500/10 rounded-full">
-                          <ShieldCheckIcon className="w-3 h-3 text-emerald-500" />
-                          <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Active</span>
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => handleConnect([service.id])}
-                          disabled={isConnecting || connectingServices.length > 0}
-                          className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 flex items-center space-x-1"
-                        >
-                          {isConnecting ? (
-                            <ArrowPathIcon className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <LinkIcon className="w-3 h-3" />
-                          )}
-                          <span>Connect</span>
-                        </button>
-                      )}
+              {SERVICES.map((service) => (
+                <div
+                  key={service.name}
+                  className={`p-5 rounded-2xl border transition-all ${
+                    connected
+                      ? 'bg-emerald-500/5 border-emerald-500/20'
+                      : 'bg-zinc-50 dark:bg-[#161619] border-zinc-200 dark:border-zinc-800'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className={`w-10 h-10 rounded-xl ${service.bgColor} flex items-center justify-center text-lg`}>
+                      {service.icon}
                     </div>
-                    <h3 className="text-sm font-bold mb-1">{service.name}</h3>
-                    <p className="text-[11px] text-zinc-500 leading-relaxed">{service.description}</p>
+                    {connected && (
+                      <span className="flex items-center space-x-1 px-2 py-0.5 bg-emerald-500/10 rounded-full">
+                        <ShieldCheckIcon className="w-3 h-3 text-emerald-500" />
+                        <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Ready</span>
+                      </span>
+                    )}
                   </div>
-                );
-              })}
+                  <h3 className="text-sm font-bold mb-1">{service.name}</h3>
+                  <p className="text-[11px] text-zinc-500 leading-relaxed">{service.description}</p>
+                </div>
+              ))}
             </div>
 
-            {/* Security note */}
             <div className="p-4 bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-zinc-800 rounded-xl">
               <div className="flex items-start space-x-3">
                 <ShieldCheckIcon className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
                 <div>
                   <h4 className="text-xs font-bold mb-1">Privacy & Security</h4>
                   <p className="text-[11px] text-zinc-500 leading-relaxed">
-                    Your Google credentials are stored securely and only used to access the services you've authorized.
-                    Eburon AI uses OAuth 2.0 and never stores your Google password. You can revoke access at any time from your
+                    Authentication is handled securely through Firebase. Eburon AI never stores your Google password.
+                    You can revoke access at any time from your
                     <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-400 ml-1">Google Account settings</a>.
                   </p>
                 </div>

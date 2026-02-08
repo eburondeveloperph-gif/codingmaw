@@ -24,61 +24,6 @@ const pool = new Pool(dbConfig);
 const JWT_SECRET = process.env.JWT_SECRET || 'eburon-codemax-secret-key-change-in-production';
 const JWT_EXPIRES = '7d';
 
-// ── Google OAuth Config ─────────────────────────────────────
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5173/auth/google/callback';
-
-const GOOGLE_SCOPES = {
-  base: ['openid', 'email', 'profile'],
-  gmail: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
-  sheets: ['https://www.googleapis.com/auth/spreadsheets'],
-  chat: ['https://www.googleapis.com/auth/chat.messages', 'https://www.googleapis.com/auth/chat.spaces.readonly'],
-  drive: ['https://www.googleapis.com/auth/drive.readonly'],
-};
-
-async function exchangeGoogleCode(code) {
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code,
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      redirect_uri: GOOGLE_REDIRECT_URI,
-      grant_type: 'authorization_code',
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Google token exchange failed: ${err}`);
-  }
-  return res.json();
-}
-
-async function refreshGoogleToken(refreshToken) {
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      refresh_token: refreshToken,
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      grant_type: 'refresh_token',
-    }),
-  });
-  if (!res.ok) throw new Error('Failed to refresh Google token');
-  return res.json();
-}
-
-async function getGoogleUserInfo(accessToken) {
-  const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) throw new Error('Failed to get Google user info');
-  return res.json();
-}
-
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -110,174 +55,55 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// ── Google OAuth ────────────────────────────────────────────
-
-app.get('/api/auth/google/url', (req, res) => {
-  if (!GOOGLE_CLIENT_ID) return res.status(500).json({ error: 'Google OAuth not configured' });
-  const scopes = req.query.scopes
-    ? req.query.scopes.split(',')
-    : GOOGLE_SCOPES.base;
-  const allScopes = [...new Set([...GOOGLE_SCOPES.base, ...scopes])];
-  const state = req.query.link_token || '';
-  const params = new URLSearchParams({
-    client_id: GOOGLE_CLIENT_ID,
-    redirect_uri: GOOGLE_REDIRECT_URI,
-    response_type: 'code',
-    scope: allScopes.join(' '),
-    access_type: 'offline',
-    prompt: 'consent',
-    state,
-  });
-  res.json({ url: `https://accounts.google.com/o/oauth2/auth?${params}` });
-});
+// ── Firebase Auth ────────────────────────────────────────────
 
 app.post('/api/auth/google/callback', async (req, res) => {
   try {
-    const { code, state, access_token: popupAccessToken, firebase_uid, email: popupEmail, display_name: popupName, photo_url: popupPhoto } = req.body;
-
-    let googleUser, accessToken, refreshToken, expiry, scopes;
-
-    if (popupAccessToken && popupEmail) {
-      // Firebase popup flow — we already have the access token and user info
-      googleUser = {
-        id: firebase_uid || popupEmail,
-        email: popupEmail,
-        name: popupName || popupEmail.split('@')[0],
-        picture: popupPhoto || null,
-      };
-      accessToken = popupAccessToken;
-      refreshToken = null;
-      expiry = new Date(Date.now() + 3600 * 1000); // ~1 hour
-      scopes = 'openid email profile';
-    } else if (code) {
-      // Redirect flow — exchange code for tokens
-      const tokens = await exchangeGoogleCode(code);
-      googleUser = await getGoogleUserInfo(tokens.access_token);
-      accessToken = tokens.access_token;
-      refreshToken = tokens.refresh_token || null;
-      expiry = tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null;
-      scopes = tokens.scope || '';
-    } else {
-      return res.status(400).json({ error: 'Authorization code or access token required' });
+    const { firebase_uid, email, display_name, photo_url } = req.body;
+    if (!firebase_uid || !email) {
+      return res.status(400).json({ error: 'Firebase UID and email are required' });
     }
 
-    // If state contains a JWT, this is a "link account" flow
-    if (state) {
-      try {
-        const decoded = jwt.verify(state, JWT_SECRET);
-        await pool.query(
-          `UPDATE users SET
-            google_id = $1,
-            google_access_token = $2,
-            google_refresh_token = COALESCE($3, google_refresh_token),
-            google_token_expiry = $4,
-            google_scopes = $5,
-            avatar_url = COALESCE(avatar_url, $6),
-            updated_at = NOW()
-           WHERE id = $7`,
-          [googleUser.id, accessToken, refreshToken, expiry, scopes, googleUser.picture, decoded.userId]
-        );
-        const updated = await pool.query(
-          'SELECT id, email, display_name, avatar_url, ollama_cloud_url, ollama_api_key, ollama_local_url, google_id, google_scopes, google_token_expiry, created_at, updated_at FROM users WHERE id = $1',
-          [decoded.userId]
-        );
-        const jwtToken = jwt.sign({ userId: decoded.userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
-        return res.json({ token: jwtToken, user: updated.rows[0], linked: true });
-      } catch {
-        // Invalid state token — fall through to login/register flow
-      }
-    }
+    const userFields = 'id, email, display_name, avatar_url, ollama_cloud_url, ollama_api_key, ollama_local_url, google_id, google_scopes, google_token_expiry, created_at, updated_at';
 
-    // Check if user exists by google_id
+    // Check if user exists by google_id (Firebase UID)
     let result = await pool.query(
-      'SELECT id, email, display_name, avatar_url, ollama_cloud_url, ollama_api_key, ollama_local_url, google_id, google_scopes, google_token_expiry, created_at, updated_at FROM users WHERE google_id = $1',
-      [googleUser.id]
+      `SELECT ${userFields} FROM users WHERE google_id = $1`,
+      [firebase_uid]
     );
 
     if (result.rows.length > 0) {
-      await pool.query(
-        `UPDATE users SET
-          google_access_token = $1,
-          google_refresh_token = COALESCE($2, google_refresh_token),
-          google_token_expiry = $3,
-          google_scopes = $4,
-          updated_at = NOW()
-         WHERE google_id = $5`,
-        [accessToken, refreshToken, expiry, scopes, googleUser.id]
-      );
       const user = result.rows[0];
       const jwtToken = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
       return res.json({ token: jwtToken, user });
     }
 
     // Check if user exists by email
-    result = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [googleUser.email.toLowerCase()]
-    );
+    result = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
 
     if (result.rows.length > 0) {
       const userId = result.rows[0].id;
       await pool.query(
-        `UPDATE users SET
-          google_id = $1,
-          google_access_token = $2,
-          google_refresh_token = COALESCE($3, google_refresh_token),
-          google_token_expiry = $4,
-          google_scopes = $5,
-          avatar_url = COALESCE(avatar_url, $6),
-          updated_at = NOW()
-         WHERE id = $7`,
-        [googleUser.id, accessToken, refreshToken, expiry, scopes, googleUser.picture, userId]
+        `UPDATE users SET google_id = $1, avatar_url = COALESCE(avatar_url, $2), updated_at = NOW() WHERE id = $3`,
+        [firebase_uid, photo_url || null, userId]
       );
-      const updated = await pool.query(
-        'SELECT id, email, display_name, avatar_url, ollama_cloud_url, ollama_api_key, ollama_local_url, google_id, google_scopes, google_token_expiry, created_at, updated_at FROM users WHERE id = $1',
-        [userId]
-      );
+      const updated = await pool.query(`SELECT ${userFields} FROM users WHERE id = $1`, [userId]);
       const jwtToken = jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
       return res.json({ token: jwtToken, user: updated.rows[0] });
     }
 
     // New user — create account
     const newUser = await pool.query(
-      `INSERT INTO users (email, display_name, avatar_url, google_id, google_access_token, google_refresh_token, google_token_expiry, google_scopes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, email, display_name, avatar_url, ollama_cloud_url, ollama_api_key, ollama_local_url, google_id, google_scopes, google_token_expiry, created_at, updated_at`,
-      [googleUser.email.toLowerCase(), googleUser.name || googleUser.email.split('@')[0], googleUser.picture || null,
-       googleUser.id, accessToken, refreshToken, expiry, scopes]
+      `INSERT INTO users (email, display_name, avatar_url, google_id)
+       VALUES ($1, $2, $3, $4)
+       RETURNING ${userFields}`,
+      [email.toLowerCase(), display_name || email.split('@')[0], photo_url || null, firebase_uid]
     );
     const user = newUser.rows[0];
     const jwtToken = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
     res.status(201).json({ token: jwtToken, user });
   } catch (err) {
-    console.error('Google OAuth error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Connect additional Google services (add scopes)
-app.post('/api/auth/google/connect', authMiddleware, async (req, res) => {
-  try {
-    const { services } = req.body; // array like ['gmail', 'sheets', 'chat']
-    if (!services || !Array.isArray(services)) return res.status(400).json({ error: 'Services array required' });
-
-    const scopes = services.flatMap(s => GOOGLE_SCOPES[s] || []);
-    const allScopes = [...new Set([...GOOGLE_SCOPES.base, ...scopes])];
-
-    // Get current user JWT to pass as state for the link flow
-    const linkToken = jwt.sign({ userId: req.userId }, JWT_SECRET, { expiresIn: '10m' });
-
-    const params = new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      redirect_uri: GOOGLE_REDIRECT_URI,
-      response_type: 'code',
-      scope: allScopes.join(' '),
-      access_type: 'offline',
-      prompt: 'consent',
-      state: linkToken,
-    });
-    res.json({ url: `https://accounts.google.com/o/oauth2/auth?${params}` });
-  } catch (err) {
+    console.error('Firebase auth error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -303,29 +129,16 @@ app.post('/api/auth/google/disconnect', authMiddleware, async (req, res) => {
   }
 });
 
-// Google services status
+// Google connection status
 app.get('/api/auth/google/status', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT google_id, google_scopes, google_token_expiry FROM users WHERE id = $1',
+      'SELECT google_id FROM users WHERE id = $1',
       [req.userId]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-    const { google_id, google_scopes, google_token_expiry } = result.rows[0];
-    const connected = !!google_id;
-    const scopes = google_scopes ? google_scopes.split(' ') : [];
-    const expired = google_token_expiry ? new Date(google_token_expiry) < new Date() : true;
-    res.json({
-      connected,
-      expired: connected ? expired : null,
-      scopes,
-      services: {
-        gmail: scopes.some(s => s.includes('gmail')),
-        sheets: scopes.some(s => s.includes('spreadsheets')),
-        chat: scopes.some(s => s.includes('chat')),
-        drive: scopes.some(s => s.includes('drive')),
-      },
-    });
+    const connected = !!result.rows[0].google_id;
+    res.json({ connected });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
