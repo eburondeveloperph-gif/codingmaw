@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { Logo } from './Logo';
 import { EnvelopeIcon, LockClosedIcon, UserIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
-import * as api from '../services/api';
 
 interface AuthPageProps {
   onLogin: (email: string, password: string) => Promise<void>;
   onRegister: (email: string, password: string, displayName?: string) => Promise<void>;
-  onGoogleLogin?: (code: string, state?: string) => Promise<void>;
+  onGoogleLogin: () => Promise<void>;
 }
 
 const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onRegister, onGoogleLogin }) => {
@@ -58,10 +57,10 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onRegister, onGoogleLogin 
     setError('');
     setGoogleLoading(true);
     try {
-      const { url } = await api.getGoogleAuthUrl();
-      window.location.href = url;
+      await onGoogleLogin();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start Google sign-in');
+      setError(err instanceof Error ? err.message : 'Failed to sign in with Google');
+    } finally {
       setGoogleLoading(false);
     }
   };

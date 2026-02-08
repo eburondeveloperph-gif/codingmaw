@@ -133,21 +133,38 @@ app.get('/api/auth/google/url', (req, res) => {
 
 app.post('/api/auth/google/callback', async (req, res) => {
   try {
-    const { code, state } = req.body;
-    if (!code) return res.status(400).json({ error: 'Authorization code required' });
+    const { code, state, access_token: popupAccessToken, firebase_uid, email: popupEmail, display_name: popupName, photo_url: popupPhoto } = req.body;
 
-    const tokens = await exchangeGoogleCode(code);
-    const googleUser = await getGoogleUserInfo(tokens.access_token);
-    const expiry = tokens.expires_in
-      ? new Date(Date.now() + tokens.expires_in * 1000)
-      : null;
-    const scopes = tokens.scope || '';
+    let googleUser, accessToken, refreshToken, expiry, scopes;
+
+    if (popupAccessToken && popupEmail) {
+      // Firebase popup flow — we already have the access token and user info
+      googleUser = {
+        id: firebase_uid || popupEmail,
+        email: popupEmail,
+        name: popupName || popupEmail.split('@')[0],
+        picture: popupPhoto || null,
+      };
+      accessToken = popupAccessToken;
+      refreshToken = null;
+      expiry = new Date(Date.now() + 3600 * 1000); // ~1 hour
+      scopes = 'openid email profile';
+    } else if (code) {
+      // Redirect flow — exchange code for tokens
+      const tokens = await exchangeGoogleCode(code);
+      googleUser = await getGoogleUserInfo(tokens.access_token);
+      accessToken = tokens.access_token;
+      refreshToken = tokens.refresh_token || null;
+      expiry = tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null;
+      scopes = tokens.scope || '';
+    } else {
+      return res.status(400).json({ error: 'Authorization code or access token required' });
+    }
 
     // If state contains a JWT, this is a "link account" flow
     if (state) {
       try {
         const decoded = jwt.verify(state, JWT_SECRET);
-        // Link Google to existing user
         await pool.query(
           `UPDATE users SET
             google_id = $1,
@@ -158,7 +175,7 @@ app.post('/api/auth/google/callback', async (req, res) => {
             avatar_url = COALESCE(avatar_url, $6),
             updated_at = NOW()
            WHERE id = $7`,
-          [googleUser.id, tokens.access_token, tokens.refresh_token || null, expiry, scopes, googleUser.picture || null, decoded.userId]
+          [googleUser.id, accessToken, refreshToken, expiry, scopes, googleUser.picture, decoded.userId]
         );
         const updated = await pool.query(
           'SELECT id, email, display_name, avatar_url, ollama_cloud_url, ollama_api_key, ollama_local_url, google_id, google_scopes, google_token_expiry, created_at, updated_at FROM users WHERE id = $1',
@@ -178,7 +195,6 @@ app.post('/api/auth/google/callback', async (req, res) => {
     );
 
     if (result.rows.length > 0) {
-      // Existing Google user — update tokens
       await pool.query(
         `UPDATE users SET
           google_access_token = $1,
@@ -187,7 +203,7 @@ app.post('/api/auth/google/callback', async (req, res) => {
           google_scopes = $4,
           updated_at = NOW()
          WHERE google_id = $5`,
-        [tokens.access_token, tokens.refresh_token || null, expiry, scopes, googleUser.id]
+        [accessToken, refreshToken, expiry, scopes, googleUser.id]
       );
       const user = result.rows[0];
       const jwtToken = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
@@ -201,7 +217,6 @@ app.post('/api/auth/google/callback', async (req, res) => {
     );
 
     if (result.rows.length > 0) {
-      // Link Google to existing email user
       const userId = result.rows[0].id;
       await pool.query(
         `UPDATE users SET
@@ -213,7 +228,7 @@ app.post('/api/auth/google/callback', async (req, res) => {
           avatar_url = COALESCE(avatar_url, $6),
           updated_at = NOW()
          WHERE id = $7`,
-        [googleUser.id, tokens.access_token, tokens.refresh_token || null, expiry, scopes, googleUser.picture || null, userId]
+        [googleUser.id, accessToken, refreshToken, expiry, scopes, googleUser.picture, userId]
       );
       const updated = await pool.query(
         'SELECT id, email, display_name, avatar_url, ollama_cloud_url, ollama_api_key, ollama_local_url, google_id, google_scopes, google_token_expiry, created_at, updated_at FROM users WHERE id = $1',
@@ -229,7 +244,7 @@ app.post('/api/auth/google/callback', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id, email, display_name, avatar_url, ollama_cloud_url, ollama_api_key, ollama_local_url, google_id, google_scopes, google_token_expiry, created_at, updated_at`,
       [googleUser.email.toLowerCase(), googleUser.name || googleUser.email.split('@')[0], googleUser.picture || null,
-       googleUser.id, tokens.access_token, tokens.refresh_token || null, expiry, scopes]
+       googleUser.id, accessToken, refreshToken, expiry, scopes]
     );
     const user = newUser.rows[0];
     const jwtToken = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES });

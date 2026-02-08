@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as api from '../services/api';
 import type { User } from '../services/api';
+import { signInWithGooglePopup, signOutFirebase } from '../services/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -8,7 +9,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
-  loginWithGoogle: (code: string, state?: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   logout: () => void;
   updateUser: (data: Partial<Pick<User, 'display_name' | 'avatar_url' | 'ollama_cloud_url' | 'ollama_api_key' | 'ollama_local_url'>>) => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -57,8 +58,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(res.user);
   };
 
-  const loginWithGoogleFn = async (code: string, state?: string) => {
-    const res = await api.googleCallback(code, state);
+  const loginWithGoogleFn = async () => {
+    const googleResult = await signInWithGooglePopup();
+    const res = await api.googlePopupCallback({
+      access_token: googleResult.accessToken,
+      firebase_uid: googleResult.uid,
+      email: googleResult.email,
+      display_name: googleResult.displayName,
+      photo_url: googleResult.photoURL,
+    });
     api.setToken(res.token);
     setUser(res.user);
   };
@@ -66,6 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     api.clearToken();
     setUser(null);
+    signOutFirebase().catch(() => {});
   };
 
   const updateUser = async (data: Partial<Pick<User, 'display_name' | 'avatar_url' | 'ollama_cloud_url' | 'ollama_api_key' | 'ollama_local_url'>>) => {

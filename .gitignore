@@ -5,9 +5,10 @@ npm-cache
 .env.local
 backend/node_modules/
 backend/.env
+*.adminsdk*.json
+client_secret_*.json
 referece-ui/
 *.log
 backend.log
 .DS_Store
 .vite
-client_secret_*.json

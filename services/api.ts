@@ -136,6 +136,18 @@ export const googleCallback = (code: string, state?: string) =>
     body: JSON.stringify({ code, state }),
   });
 
+export const googlePopupCallback = (data: {
+  access_token: string;
+  firebase_uid: string;
+  email: string;
+  display_name: string;
+  photo_url: string | null;
+}) =>
+  request<AuthResponse>('/auth/google/callback', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
 export const getGoogleStatus = () =>
   request<GoogleServicesStatus>('/auth/google/status');
 
