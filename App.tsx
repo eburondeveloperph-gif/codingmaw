@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Logo } from './components/Logo';
 import { Creation } from './components/CreationHistory';
-import { MODELS, CHAT_MODEL, CODE_MODEL, Message, chatStream, chatOllamaStream } from './services/gemini';
+import { MODELS, CHAT_MODEL, CODE_MODEL, Message, chatStream, chatOllamaStream } from './services/eburon';
 import * as api from './services/api';
 import { googleSearch, formatSearchResultsForPrompt } from './services/search';
 import { listLocalModels, pullModel, deleteModel, searchModels, formatSize, POPULAR_MODELS, type OllamaModel, type PullProgress } from './services/ollamaModels';

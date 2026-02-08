@@ -153,7 +153,7 @@ export const Hero: React.FC = () => {
           to <span className="underline decoration-4 decoration-blue-500 underline-offset-4 md:underline-offset-8 text-white">life</span>.
         </h1>
         <p className="text-base sm:text-xl text-zinc-400 max-w-2xl mx-auto leading-relaxed font-light">
-          Gemini sees the code in everything. Drop in an old map, a floor plan, a diagram, or a doodle, and watch it turn into a working interactive experience instantly.
+          Eburon AI sees the code in everything. Drop in an old map, a floor plan, a diagram, or a doodle, and watch it turn into a working interactive experience instantly.
         </p>
       </div>
     </>
