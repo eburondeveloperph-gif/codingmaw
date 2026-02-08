@@ -10,3 +10,4 @@ referece-ui/
 backend.log
 .DS_Store
 .vite
+client_secret_*.json
