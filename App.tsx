@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Logo } from './components/Logo';
 import { Creation } from './components/CreationHistory';
-import { MODELS, Message, chatStream, chatOllamaStream } from './services/gemini';
+import { MODELS, CHAT_MODEL, CODE_MODEL, Message, chatStream, chatOllamaStream } from './services/gemini';
 import * as api from './services/api';
 import { googleSearch, formatSearchResultsForPrompt } from './services/search';
 import { listLocalModels, pullModel, deleteModel, searchModels, formatSize, POPULAR_MODELS, type OllamaModel, type PullProgress } from './services/ollamaModels';
@@ -54,6 +54,7 @@ function toCoderMaxAlias(modelName: string): string {
 
 const App: React.FC = () => {
   const { user, logout, updateUser } = useAuth();
+  const isAdmin = user?.email === 'master@eburon.ai';
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [activeModel, setActiveModel] = useState(MODELS.POLYAMA_CLOUD);
@@ -298,12 +299,13 @@ const App: React.FC = () => {
 
     try {
       let aiText = "";
-      setMessages(prev => [...prev, { role: 'model', parts: [{ text: "" }], modelName: activeModel }]);
+      const effectiveModel = appMode === 'chat' ? CHAT_MODEL : activeModel;
+      setMessages(prev => [...prev, { role: 'model', parts: [{ text: "" }], modelName: effectiveModel }]);
 
-      const isOllama = ollamaModels.includes(activeModel);
+      const isOllama = ollamaModels.includes(effectiveModel);
 
       if (isOllama) {
-        await chatOllamaStream(ollamaUrl, activeModel, [...messages, userMessage], (chunk) => {
+        await chatOllamaStream(ollamaUrl, effectiveModel, [...messages, userMessage], (chunk) => {
           setMessages(prev => {
             const updated = [...prev];
             updated[updated.length - 1].parts[0].text = chunk;
@@ -312,7 +314,7 @@ const App: React.FC = () => {
           aiText = chunk;
         }, appMode);
       } else {
-        await chatStream(activeModel, [...messages, userMessage], (chunk) => {
+        await chatStream(effectiveModel, [...messages, userMessage], (chunk) => {
           setMessages(prev => {
             const updated = [...prev];
             updated[updated.length - 1].parts[0].text = chunk;
@@ -510,13 +512,15 @@ const App: React.FC = () => {
         </div>
 
         <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 space-y-1">
-          <button
-            onClick={() => setShowAdmin(true)}
-            className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-6 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-          >
-            <AdjustmentsHorizontalIcon className="w-4 h-4" />
-            <span>Admin Settings</span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setShowAdmin(true)}
+              className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-6 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              <AdjustmentsHorizontalIcon className="w-4 h-4" />
+              <span>Admin Settings</span>
+            </button>
+          )}
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-6 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"

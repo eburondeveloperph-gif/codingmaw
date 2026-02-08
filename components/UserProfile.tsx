@@ -11,9 +11,7 @@ interface UserProfileProps {
 
 const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdate, onLogout, onClose }) => {
   const [displayName, setDisplayName] = useState(user.display_name);
-  const [ollamaCloudUrl, setOllamaCloudUrl] = useState(user.ollama_cloud_url || 'https://api.ollama.com');
   const [ollamaApiKey, setOllamaApiKey] = useState(user.ollama_api_key || '');
-  const [ollamaLocalUrl, setOllamaLocalUrl] = useState(user.ollama_local_url || 'http://localhost:11434');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -24,9 +22,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdate, onLogout, onC
     try {
       await onUpdate({
         display_name: displayName,
-        ollama_cloud_url: ollamaCloudUrl,
         ollama_api_key: ollamaApiKey,
-        ollama_local_url: ollamaLocalUrl,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -72,41 +68,17 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, onUpdate, onLogout, onC
           </div>
 
           <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-4">Orbit Model Configuration</h3>
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-4">Eburon AI Configuration</h3>
 
-            {/* Ollama Cloud URL */}
-            <div className="space-y-1.5 mb-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Cloud API URL</label>
-              <input
-                type="text"
-                value={ollamaCloudUrl}
-                onChange={(e) => setOllamaCloudUrl(e.target.value)}
-                className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-[6px] px-4 py-3 text-sm text-zinc-900 dark:text-white font-mono focus:ring-1 focus:ring-blue-500 transition-all"
-                placeholder="https://api.ollama.com"
-              />
-            </div>
-
-            {/* Ollama API Key */}
-            <div className="space-y-1.5 mb-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Cloud API Key</label>
+            {/* Eburon API Key */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Eburon API Key</label>
               <input
                 type="password"
                 value={ollamaApiKey}
                 onChange={(e) => setOllamaApiKey(e.target.value)}
                 className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-[6px] px-4 py-3 text-sm text-zinc-900 dark:text-white font-mono focus:ring-1 focus:ring-blue-500 transition-all"
-                placeholder="Your API key"
-              />
-            </div>
-
-            {/* Ollama Local URL */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Local Endpoint URL</label>
-              <input
-                type="text"
-                value={ollamaLocalUrl}
-                onChange={(e) => setOllamaLocalUrl(e.target.value)}
-                className="w-full bg-zinc-50 dark:bg-black border border-zinc-200 dark:border-zinc-800 rounded-[6px] px-4 py-3 text-sm text-zinc-900 dark:text-white font-mono focus:ring-1 focus:ring-blue-500 transition-all"
-                placeholder="http://localhost:11434"
+                placeholder="Your Eburon API key"
               />
             </div>
           </div>

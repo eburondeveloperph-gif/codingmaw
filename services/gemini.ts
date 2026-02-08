@@ -5,12 +5,15 @@
 */
 
 export const MODELS = {
-  CODEMAX_13: 'gpt-oss:120b-cloud',
-  CODEMAX_PRO: 'gpt-oss:120b-cloud',
-  CODEMAX_BETA: 'gpt-oss:120b-cloud',
-  POLYAMA_CLOUD: 'gpt-oss:120b-cloud',
-  GEMMA_3: 'gpt-oss:120b-cloud'
+  CODEMAX_13: 'kimi-k2.5:cloud',
+  CODEMAX_PRO: 'kimi-k2.5:cloud',
+  CODEMAX_BETA: 'kimi-k2.5:cloud',
+  POLYAMA_CLOUD: 'kimi-k2.5:cloud',
+  GEMMA_3: 'kimi-k2.5:cloud'
 };
+
+export const CHAT_MODEL = 'gpt-oss:120b-cloud';
+export const CODE_MODEL = 'kimi-k2.5:cloud';
 
 export interface Message {
   role: 'user' | 'model';
