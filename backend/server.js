@@ -6,13 +6,20 @@ import jwt from 'jsonwebtoken';
 
 const { Pool } = pg;
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'codemax',
-  user: process.env.DB_USER || 'codemax',
-  password: process.env.DB_PASSWORD || 'codemax_secret',
-});
+const dbConfig = process.env.DATABASE_URL
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false },
+    }
+  : {
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432'),
+      database: process.env.DB_NAME || 'codemax',
+      user: process.env.DB_USER || 'codemax',
+      password: process.env.DB_PASSWORD || 'codemax_secret',
+    };
+
+const pool = new Pool(dbConfig);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'eburon-codemax-secret-key-change-in-production';
 const JWT_EXPIRES = '7d';

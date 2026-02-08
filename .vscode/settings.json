@@ -1,3 +1,7 @@
 {
-    "liveServer.settings.port": 5503
+    "liveServer.settings.port": 5503,
+    "editor.codeActions.triggerOnFocusChange": true,
+    "editor.colorDecoratorsLimit": 500000,
+    "editor.columnSelection": true,
+    "editor.experimental.preferTreeSitter.css": true
 }

@@ -13,7 +13,8 @@ import {
   DevicePhoneMobileIcon, 
   DeviceTabletIcon, 
   ShieldCheckIcon, 
-  CheckBadgeIcon 
+  CheckBadgeIcon,
+  ArrowTopRightOnSquareIcon 
 } from '@heroicons/react/24/outline';
 import { Creation } from './CreationHistory';
 
@@ -97,6 +98,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
             {!isLoading && creation && (
                 <>
                     <button onClick={onVerify} className="flex items-center space-x-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/5 hover:bg-emerald-100 dark:hover:bg-emerald-500/10 px-3 py-1.5 rounded-[6px] transition-all uppercase tracking-tighter shadow-sm"><ShieldCheckIcon className="w-3.5 h-3.5" /><span>Verify</span></button>
+                    <a href={`/preview/${creation.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-1.5 text-[10px] font-bold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/5 hover:bg-blue-100 dark:hover:bg-blue-500/10 px-3 py-1.5 rounded-[6px] transition-all uppercase tracking-tighter shadow-sm"><ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" /><span>Preview</span></a>
                     <button onClick={handleExport} className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white rounded-[6px] transition-all"><ArrowDownTrayIcon className="w-4 h-4" /></button>
                     <button onClick={onReset} className="flex items-center space-x-1.5 text-[10px] font-bold bg-zinc-900 dark:bg-white text-white dark:text-black px-4 py-1.5 rounded-[6px] transition-all hover:opacity-90 uppercase tracking-tighter shadow-sm"><span>Reset</span></button>
                 </>
