@@ -375,6 +375,7 @@ const App: React.FC = () => {
             return updated;
           });
           aiText = chunk;
+          requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'auto' }));
         }, appMode, controller.signal);
       } else {
         await chatStream(effectiveModel, [...messages, userMessage], (chunk) => {
@@ -384,6 +385,7 @@ const App: React.FC = () => {
             return updated;
           });
           aiText = chunk;
+          requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'auto' }));
         }, appMode, controller.signal);
       }
 
