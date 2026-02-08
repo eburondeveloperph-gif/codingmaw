@@ -1,0 +1,5 @@
+.drawing-card {
+  top: var(--card-top);
+  left: var(--card-left);
+  transform: rotate(var(--card-rotation));
+}
