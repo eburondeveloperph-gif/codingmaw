@@ -78,7 +78,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
       <div className="bg-zinc-50 dark:bg-[#0f0f0f] px-6 py-3 flex items-center justify-between border-b border-zinc-200 dark:border-white/5 shrink-0">
         <div className="flex items-center space-x-6">
            <div className="flex space-x-1.5">
-                <button onClick={onReset} className="w-3 h-3 rounded-full bg-red-500/50 hover:bg-red-500 transition-all flex items-center justify-center group shadow-sm">
+                <button onClick={onReset} aria-label="Close preview" className="w-3 h-3 rounded-full bg-red-500/50 hover:bg-red-500 transition-all flex items-center justify-center group shadow-sm">
                     <XMarkIcon className="w-1.5 h-1.5 text-white opacity-0 group-hover:opacity-100" />
                 </button>
                 <div className="w-3 h-3 rounded-full bg-zinc-200 dark:bg-zinc-800 shadow-sm"></div>
@@ -88,9 +88,9 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
            <div className="h-4 w-px bg-zinc-200 dark:bg-white/10 mx-2"></div>
            
            <div className="flex bg-zinc-200/50 dark:bg-white/5 rounded-[6px] p-0.5 border border-zinc-200 dark:border-white/10">
-                <button onClick={() => setViewMode('desktop')} className={`p-1.5 rounded-[4px] transition-all ${viewMode === 'desktop' ? 'bg-white text-black shadow-sm' : 'text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-300'}`}><ComputerDesktopIcon className="w-3.5 h-3.5" /></button>
-                <button onClick={() => setViewMode('tablet')} className={`p-1.5 rounded-[4px] transition-all ${viewMode === 'tablet' ? 'bg-white text-black shadow-sm' : 'text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-300'}`}><DeviceTabletIcon className="w-3.5 h-3.5" /></button>
-                <button onClick={() => setViewMode('phone')} className={`p-1.5 rounded-[4px] transition-all ${viewMode === 'phone' ? 'bg-white text-black shadow-sm' : 'text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-300'}`}><DevicePhoneMobileIcon className="w-3.5 h-3.5" /></button>
+                <button onClick={() => setViewMode('desktop')} aria-label="Desktop view" className={`p-1.5 rounded-[4px] transition-all ${viewMode === 'desktop' ? 'bg-white text-black shadow-sm' : 'text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-300'}`}><ComputerDesktopIcon className="w-3.5 h-3.5" /></button>
+                <button onClick={() => setViewMode('tablet')} aria-label="Tablet view" className={`p-1.5 rounded-[4px] transition-all ${viewMode === 'tablet' ? 'bg-white text-black shadow-sm' : 'text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-300'}`}><DeviceTabletIcon className="w-3.5 h-3.5" /></button>
+                <button onClick={() => setViewMode('phone')} aria-label="Phone view" className={`p-1.5 rounded-[4px] transition-all ${viewMode === 'phone' ? 'bg-white text-black shadow-sm' : 'text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-300'}`}><DevicePhoneMobileIcon className="w-3.5 h-3.5" /></button>
            </div>
         </div>
 
@@ -99,7 +99,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ creation, isLoading, i
                 <>
                     <button onClick={onVerify} className="flex items-center space-x-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/5 hover:bg-emerald-100 dark:hover:bg-emerald-500/10 px-3 py-1.5 rounded-[6px] transition-all uppercase tracking-tighter shadow-sm"><ShieldCheckIcon className="w-3.5 h-3.5" /><span>Verify</span></button>
                     <a href={`/preview/${creation.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-1.5 text-[10px] font-bold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/5 hover:bg-blue-100 dark:hover:bg-blue-500/10 px-3 py-1.5 rounded-[6px] transition-all uppercase tracking-tighter shadow-sm"><ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" /><span>Preview</span></a>
-                    <button onClick={handleExport} className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white rounded-[6px] transition-all"><ArrowDownTrayIcon className="w-4 h-4" /></button>
+                    <button onClick={handleExport} aria-label="Export creation" className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white rounded-[6px] transition-all"><ArrowDownTrayIcon className="w-4 h-4" /></button>
                     <button onClick={onReset} className="flex items-center space-x-1.5 text-[10px] font-bold bg-zinc-900 dark:bg-white text-white dark:text-black px-4 py-1.5 rounded-[6px] transition-all hover:opacity-90 uppercase tracking-tighter shadow-sm"><span>Reset</span></button>
                 </>
             )}
