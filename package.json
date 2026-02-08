@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "./start-dev.sh",
+    "dev:frontend": "vite",
+    "dev:backend": "cd backend && npm run dev",
     "build": "vite build",
     "preview": "vite preview"
   },

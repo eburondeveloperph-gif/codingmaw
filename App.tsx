@@ -5,7 +5,6 @@
 */
 import React, { useState, useEffect, useRef } from 'react';
 import { Logo } from './components/Logo';
-import { LivePreview } from './components/LivePreview';
 import { Creation } from './components/CreationHistory';
 import { MODELS, Message, chatStream, chatOllamaStream } from './services/gemini';
 import * as api from './services/api';
@@ -58,7 +57,6 @@ const App: React.FC = () => {
     try { return (localStorage.getItem('codemax-theme') as 'light' | 'dark') || 'dark'; } catch { return 'dark'; }
   });
   const [pendingImage, setPendingImage] = useState<{ data: string; mimeType: string } | null>(null);
-  const [activeCreation, setActiveCreation] = useState<Creation | null>(null);
   const [creationHistory, setCreationHistory] = useState<Creation[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -143,7 +141,6 @@ const App: React.FC = () => {
         modelName: m.model_name || undefined,
       }));
       setMessages(loaded);
-      setActiveCreation(null);
     } catch (err) {
       console.error('Failed to load conversation:', err);
     }
@@ -151,7 +148,6 @@ const App: React.FC = () => {
 
   const startNewChat = async () => {
     setMessages([]);
-    setActiveCreation(null);
     setActiveConversationId(null);
   };
 
@@ -284,7 +280,8 @@ const App: React.FC = () => {
         }
         const newCreation = { id: creationId, name: promptText.slice(0, 30) + '...', html, timestamp: new Date() };
         setCreationHistory(prev => [newCreation, ...prev]);
-        setActiveCreation(newCreation);
+        // Open in /preview page instead of inline overlay
+        window.open(`/preview/${creationId}`, '_blank');
       }
     } catch (err) {
       setMessages(prev => [...prev, { role: 'model', parts: [{ text: `System execution failure: ${err instanceof Error ? err.message : String(err)}` }] }]);
@@ -422,16 +419,8 @@ const App: React.FC = () => {
               {creationHistory.map(item => (
                 <button
                   key={item.id}
-                  onClick={async () => {
-                    if (dbConnected && !item.html) {
-                      try {
-                        const full = await api.getCreation(item.id);
-                        const loaded = { ...item, html: full.html };
-                        setActiveCreation(loaded);
-                        return;
-                      } catch { /* fallback */ }
-                    }
-                    setActiveCreation(item);
+                  onClick={() => {
+                    window.open(`/preview/${item.id}`, '_blank');
                   }}
                   className="w-full text-left px-3 py-2.5 text-sm rounded-6 hover:bg-zinc-100 dark:hover:bg-[#1c1c1f] transition-colors group"
                 >
@@ -517,7 +506,7 @@ const App: React.FC = () => {
           </div>
           <div className="flex-1 text-center">
             <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
-              {activeCreation ? activeCreation.name : 'Engineering Core v1.3'}
+              {'Engineering Core v1.3'}
             </h2>
           </div>
           <div className="flex items-center space-x-2">
@@ -564,7 +553,7 @@ const App: React.FC = () => {
                                   <p className="text-[9px] text-zinc-500 uppercase font-mono tracking-tighter">Verified Integrity Block: v1.3.2</p>
                                 </div>
                               </div>
-                              <button onClick={() => { const h = extractHtml(part.text!); if (h) setActiveCreation({ id: 'temp', name: 'Verified Preview', html: h, timestamp: new Date() }); }} className="px-6 py-3 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-6 font-black text-[10px] uppercase tracking-tighter hover:opacity-90 transition-all shadow-lg active:scale-95">Preview Build</button>
+                              <button onClick={() => { const h = extractHtml(part.text!); if (h) { const blob = new Blob([h], {type:'text/html'}); window.open(URL.createObjectURL(blob), '_blank'); } }} className="px-6 py-3 bg-zinc-900 dark:bg-white text-white dark:text-black rounded-6 font-black text-[10px] uppercase tracking-tighter hover:opacity-90 transition-all shadow-lg active:scale-95">Preview Build</button>
                             </div>
                           )}
                         </div>
@@ -717,13 +706,6 @@ const App: React.FC = () => {
         }
       }} />
 
-      <LivePreview
-        creation={activeCreation}
-        isLoading={isGenerating}
-        isFocused={!!activeCreation}
-        onReset={() => setActiveCreation(null)}
-        onVerify={() => handleSend(`Review the following codebase and optimize for production efficiency. Correct any logic gaps or UI inconsistencies.\n\nCODEBASE:\n${activeCreation?.html}`)}
-      />
 
       {showProfile && user && (
         <UserProfile
