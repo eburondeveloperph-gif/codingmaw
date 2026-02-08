@@ -3,6 +3,7 @@ import { useAuth } from './contexts/AuthContext';
 import AuthPage from './components/AuthPage';
 import App from './App';
 import PreviewPage from './components/PreviewPage';
+import AgentPage from './components/AgentPage';
 import { Logo } from './components/Logo';
 
 const AppShell: React.FC = () => {
@@ -24,8 +25,10 @@ const AppShell: React.FC = () => {
   }
 
   // Authenticated — route
-  const isPreviewRoute = window.location.pathname.startsWith('/preview');
-  return isPreviewRoute ? <PreviewPage /> : <App />;
+  const path = window.location.pathname;
+  if (path.startsWith('/preview')) return <PreviewPage />;
+  if (path.startsWith('/agent/')) return <AgentPage />;
+  return <App />;
 };
 
 export default AppShell;

@@ -529,6 +529,20 @@ const App: React.FC = () => {
         </div>
 
         <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 space-y-1">
+          <a
+            href="/agent/codemax"
+            className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-6 hover:bg-blue-500/10 hover:text-blue-500 transition-colors"
+          >
+            <CodeBracketSquareIcon className="w-4 h-4" />
+            <span>CodeMax Agent</span>
+          </a>
+          <a
+            href="/agent/orbit"
+            className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-6 hover:bg-violet-500/10 hover:text-violet-500 transition-colors"
+          >
+            <CpuChipIcon className="w-4 h-4" />
+            <span>Orbit Agent</span>
+          </a>
           {isAdmin && (
             <button
               onClick={() => setShowAdmin(true)}
