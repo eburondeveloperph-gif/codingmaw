@@ -8,7 +8,7 @@ import base64
 import os
 import io
 import wave
-import struct
+import subprocess
 import tempfile
 
 import numpy as np
@@ -22,6 +22,47 @@ MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "")
 MISTRAL_BASE_URL = "wss://api.mistral.ai"
 MODEL = "voxtral-mini-transcribe-realtime-2602"
 SAMPLE_RATE = 16_000
+
+
+def convert_to_wav(audio_bytes: bytes, original_name: str = "recording.webm") -> bytes:
+    """Convert any audio format (webm, mp4, ogg, etc.) to PCM16 WAV using ffmpeg."""
+    # Try WAV parse first — skip ffmpeg if already WAV
+    try:
+        buf = io.BytesIO(audio_bytes)
+        with wave.open(buf, "rb") as wf:
+            wf.getnframes()
+        return audio_bytes
+    except Exception:
+        pass
+
+    # Use ffmpeg to convert to 16kHz mono PCM16 WAV
+    with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as src:
+        src.write(audio_bytes)
+        src_path = src.name
+
+    dst_path = src_path.replace(".webm", ".wav")
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", src_path,
+                "-ar", str(SAMPLE_RATE),
+                "-ac", "1",
+                "-sample_fmt", "s16",
+                "-f", "wav",
+                dst_path,
+            ],
+            capture_output=True, timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg error: {result.stderr.decode(errors='replace')[:200]}")
+        with open(dst_path, "rb") as f:
+            return f.read()
+    finally:
+        for p in (src_path, dst_path):
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
 
 app = FastAPI(title="Eburon ASR", version="1.0.0")
 
@@ -153,7 +194,10 @@ async def transcribe(file: UploadFile = File(...)):
         if len(audio_bytes) < 100:
             return JSONResponse(content={"text": "", "service": "Eburon ASR"})
 
-        text = await transcribe_audio(audio_bytes, api_key)
+        # Convert browser audio (webm/mp4) to WAV for Voxtral
+        wav_bytes = convert_to_wav(audio_bytes, file.filename or "recording.webm")
+
+        text = await transcribe_audio(wav_bytes, api_key)
         return JSONResponse(content={"text": text, "service": "Eburon ASR"})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Eburon ASR error: {str(e)}")

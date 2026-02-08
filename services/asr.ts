@@ -11,8 +11,9 @@ export interface TranscriptionResult {
 }
 
 export async function transcribeAudio(audioBlob: Blob): Promise<string> {
+  const ext = audioBlob.type.includes('webm') ? 'webm' : audioBlob.type.includes('mp4') ? 'mp4' : 'wav';
   const formData = new FormData();
-  formData.append('file', audioBlob, 'recording.wav');
+  formData.append('file', audioBlob, `recording.${ext}`);
 
   const res = await fetch(`${ASR_URL}/transcribe`, {
     method: 'POST',
