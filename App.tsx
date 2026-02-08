@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Logo } from './components/Logo';
 import { Creation } from './components/CreationHistory';
-import { MODELS, CHAT_MODEL, CODE_MODEL, Message, chatStream, chatOllamaStream } from './services/eburon';
+import { MODELS, CHAT_MODEL, CODE_MODEL, Message, chatStream, chatOllamaStream, EBURON_MODELS, DEFAULT_MODEL, type EburonModel } from './services/eburon';
 import * as api from './services/api';
 import { googleSearch, formatSearchResultsForPrompt } from './services/search';
 import { listLocalModels, pullModel, deleteModel, searchModels, formatSize, POPULAR_MODELS, type OllamaModel, type PullProgress } from './services/ollamaModels';
@@ -57,7 +57,8 @@ const App: React.FC = () => {
   const isAdmin = user?.email === 'master@eburon.ai';
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [activeModel, setActiveModel] = useState(MODELS.POLYAMA_CLOUD);
+  const [activeModel, setActiveModel] = useState(DEFAULT_MODEL.model);
+  const [activeEburonModel, setActiveEburonModel] = useState<EburonModel>(DEFAULT_MODEL);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -96,6 +97,7 @@ const App: React.FC = () => {
   const [editingTitle, setEditingTitle] = useState('');
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -105,9 +107,7 @@ const App: React.FC = () => {
   }, [theme]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isGenerating]);
 
   useEffect(() => {
@@ -228,7 +228,7 @@ const App: React.FC = () => {
     try {
       await deleteModel(ollamaUrl, modelName);
       await detectOllamaModels();
-      if (activeModel === modelName) setActiveModel(MODELS.POLYAMA_CLOUD);
+      if (activeModel === modelName) { setActiveModel(DEFAULT_MODEL.model); setActiveEburonModel(DEFAULT_MODEL); }
     } catch (err) {
       console.error('Failed to delete model:', err);
     }
@@ -595,23 +595,38 @@ const App: React.FC = () => {
         <header className="h-12 md:h-14 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center px-3 md:px-6 shrink-0 bg-white/50 dark:bg-[#0e0e11]/50 backdrop-blur-md z-20">
           <div className="flex items-center space-x-4">
             <div className="relative group">
-              <button className="flex items-center space-x-2 px-3 py-1.5 rounded-6 bg-zinc-50 dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 text-xs font-bold uppercase tracking-tight hover:border-zinc-400 dark:hover:border-zinc-600 transition-all">
-                <span>{ollamaAliasMap[activeModel] || Object.entries(MODELS).find(([_, v]) => v === activeModel)?.[0] || activeModel}</span>
+              <button className="flex items-center space-x-2 px-3 py-1.5 rounded-6 bg-zinc-50 dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 text-xs font-bold tracking-tight hover:border-zinc-400 dark:hover:border-zinc-600 transition-all">
+                <span>{activeEburonModel.label}</span>
+                <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
+                  activeEburonModel.badge === 'pro' ? 'bg-purple-500/20 text-purple-400' :
+                  activeEburonModel.badge === 'beta' ? 'bg-amber-500/20 text-amber-400' :
+                  activeEburonModel.badge === 'new' ? 'bg-emerald-500/20 text-emerald-400' :
+                  'bg-blue-500/20 text-blue-400'
+                }`}>{activeEburonModel.badge}</span>
                 <ChevronDownIcon className="w-3 h-3" />
               </button>
-              <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 rounded-6 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-1">
-                <div className="px-3 py-1 text-[9px] font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-100 dark:border-zinc-800 mb-1">Standard</div>
-                {Object.entries(MODELS).map(([k, v]) => (
-                  <button key={k} onClick={() => setActiveModel(v)} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800/50">
-                    {k.replace('_', ' ')}
+              <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 rounded-6 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-1">
+                <div className="px-3 py-1.5 text-[9px] font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-100 dark:border-zinc-800 mb-1">Eburon Cloud</div>
+                {EBURON_MODELS.map(m => (
+                  <button key={m.id} onClick={() => { setActiveModel(m.model); setActiveEburonModel(m); }} className={`w-full text-left px-3 py-2.5 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800/50 flex items-center justify-between ${activeModel === m.model && activeEburonModel.id === m.id ? 'bg-zinc-50 dark:bg-zinc-800/30' : ''}`}>
+                    <div className="flex flex-col">
+                      <span className="font-bold">{m.label}</span>
+                      <span className="text-[9px] text-zinc-500">{m.description}</span>
+                    </div>
+                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest shrink-0 ${
+                      m.badge === 'pro' ? 'bg-purple-500/20 text-purple-400' :
+                      m.badge === 'beta' ? 'bg-amber-500/20 text-amber-400' :
+                      m.badge === 'new' ? 'bg-emerald-500/20 text-emerald-400' :
+                      'bg-blue-500/20 text-blue-400'
+                    }`}>{m.badge}</span>
                   </button>
                 ))}
                 {ollamaModels.length > 0 && (
                   <>
-                    <div className="px-3 py-1 text-[9px] font-bold text-blue-400 uppercase tracking-widest border-b border-zinc-100 dark:border-zinc-800 my-1">CoderMax Local</div>
+                    <div className="px-3 py-1.5 text-[9px] font-bold text-emerald-400 uppercase tracking-widest border-b border-zinc-100 dark:border-zinc-800 my-1">Self-Hosted</div>
                     {ollamaModels.map(m => (
-                      <button key={m} onClick={() => setActiveModel(m)} className="w-full text-left px-3 py-2 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800/50 flex items-center justify-between">
-                        <span>{ollamaAliasMap[m] || m}</span>
+                      <button key={m} onClick={() => { setActiveModel(m); setActiveEburonModel({ id: `local-${m}`, label: ollamaAliasMap[m] || m, badge: 'release', model: m, source: 'local', description: 'Local Ollama model' }); }} className="w-full text-left px-3 py-2.5 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800/50 flex items-center justify-between">
+                        <span className="font-bold">{ollamaAliasMap[m] || m}</span>
                         <SignalIcon className="w-3 h-3 text-emerald-500" />
                       </button>
                     ))}
@@ -733,6 +748,7 @@ const App: React.FC = () => {
               </div>
             );
           })}
+          <div ref={bottomRef} />
         </div>
 
         {/* Floating Input Pill Area */}

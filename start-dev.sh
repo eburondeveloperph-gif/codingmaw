@@ -8,64 +8,67 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+DOCKER_AVAILABLE=false
+
 echo -e "${BLUE}🚀 CodeMax Architect — Local Development Bootstrap${NC}"
 echo
 
-# Check if Docker is running — auto-start if not
-if ! command -v docker >/dev/null 2>&1; then
-  echo -e "${RED}❌ Docker command not found. Please install Docker Desktop.${NC}"
-  exit 1
-fi
-
-if ! docker info >/dev/null 2>&1; then
-  echo -e "${YELLOW}🐳 Docker is not running. Attempting to start Docker Desktop...${NC}"
-  if [ -d "/Applications/Docker.app" ]; then
-    open /Applications/Docker.app
-    echo -e "${YELLOW}⏳ Waiting for Docker to be ready...${NC}"
-    retries=0
-    until docker info >/dev/null 2>&1; do
-      sleep 2
-      retries=$((retries + 1))
-      if [ $retries -ge 60 ]; then
-        echo -e "${RED}❌ Docker did not start after 2 minutes. Please start it manually.${NC}"
-        exit 1
-      fi
-    done
-    echo -e "${GREEN}✅ Docker is running${NC}"
-  else
-    echo -e "${RED}❌ Docker Desktop app not found. Please install Docker Desktop from docker.com.${NC}"
-    exit 1
+# Check if Docker is available
+if command -v docker >/dev/null 2>&1; then
+  if ! docker info >/dev/null 2>&1; then
+    echo -e "${YELLOW}🐳 Docker is not running. Attempting to start Docker Desktop...${NC}"
+    if [ -d "/Applications/Docker.app" ]; then
+      open /Applications/Docker.app
+      echo -e "${YELLOW}⏳ Waiting for Docker to be ready...${NC}"
+      retries=0
+      until docker info >/dev/null 2>&1; do
+        sleep 2
+        retries=$((retries + 1))
+        if [ $retries -ge 60 ]; then
+          echo -e "${YELLOW}⚠️  Docker did not start. Continuing without Docker services.${NC}"
+          break
+        fi
+      done
+    fi
   fi
-fi
-
-# Start PostgreSQL if not running
-if ! docker compose ps db | grep -q "Up"; then
-  echo -e "${YELLOW}📦 Starting PostgreSQL container...${NC}"
-  docker compose up db -d
-  echo -e "${GREEN}✅ PostgreSQL started${NC}"
+  if docker info >/dev/null 2>&1; then
+    DOCKER_AVAILABLE=true
+    echo -e "${GREEN}✅ Docker is running${NC}"
+  fi
 else
-  echo -e "${GREEN}✅ PostgreSQL already running${NC}"
+  echo -e "${YELLOW}⚠️  Docker not installed. Skipping PostgreSQL & Ollama containers.${NC}"
 fi
 
-# Wait for PostgreSQL to be ready
-echo -e "${YELLOW}⏳ Waiting for PostgreSQL to be ready...${NC}"
-until docker compose exec -T db pg_isready -U codemax >/dev/null 2>&1; do
-  sleep 1
-done
-echo -e "${GREEN}✅ PostgreSQL is ready${NC}"
+if [ "$DOCKER_AVAILABLE" = true ]; then
+  # Start PostgreSQL if not running
+  if ! docker compose ps db 2>/dev/null | grep -q "Up"; then
+    echo -e "${YELLOW}📦 Starting PostgreSQL container...${NC}"
+    docker compose up db -d
+    echo -e "${GREEN}✅ PostgreSQL started${NC}"
+  else
+    echo -e "${GREEN}✅ PostgreSQL already running${NC}"
+  fi
 
-# Start Ollama if not running
-if ! docker compose ps ollama | grep -q "Up"; then
-  echo -e "${YELLOW}🤖 Starting Ollama container...${NC}"
-  docker compose up ollama -d
-  echo -e "${GREEN}✅ Ollama started${NC}"
-else
-  echo -e "${GREEN}✅ Ollama already running${NC}"
+  # Wait for PostgreSQL to be ready
+  echo -e "${YELLOW}⏳ Waiting for PostgreSQL to be ready...${NC}"
+  until docker compose exec -T db pg_isready -U codemax >/dev/null 2>&1; do
+    sleep 1
+  done
+  echo -e "${GREEN}✅ PostgreSQL is ready${NC}"
+
+  # Start Ollama if not running
+  if ! docker compose ps ollama 2>/dev/null | grep -q "Up"; then
+    echo -e "${YELLOW}🤖 Starting Ollama container...${NC}"
+    docker compose up ollama -d
+    echo -e "${GREEN}✅ Ollama started${NC}"
+  else
+    echo -e "${GREEN}✅ Ollama already running${NC}"
+  fi
+
+  # Pull model in background
+  echo -e "${YELLOW}📥 Pulling model (background)...${NC}"
+  docker compose up ollama-pull -d 2>/dev/null || true
 fi
-
-# Pull model in background
-echo -e "${YELLOW}📥 Pulling kimi-k2-thinking:cloud model (background)...${NC}"
-docker compose up ollama-pull -d 2>/dev/null || true
 
 # Install dependencies if needed
 if [ ! -d "node_modules" ]; then

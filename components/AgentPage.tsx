@@ -47,6 +47,7 @@ const AgentPage: React.FC = () => {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -55,7 +56,7 @@ const AgentPage: React.FC = () => {
   }, [theme]);
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   useEffect(() => {
@@ -297,6 +298,7 @@ const AgentPage: React.FC = () => {
               ))}
             </div>
           )}
+          <div ref={bottomRef} />
         </div>
       </div>
 

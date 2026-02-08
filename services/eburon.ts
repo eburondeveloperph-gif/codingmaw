@@ -4,10 +4,29 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
+export interface EburonModel {
+  id: string;
+  label: string;
+  badge: 'release' | 'pro' | 'beta' | 'new';
+  model: string;
+  source: 'cloud' | 'local';
+  description: string;
+}
+
+export const EBURON_MODELS: EburonModel[] = [
+  { id: 'eburon-release',  label: 'Eburon Release',  badge: 'release', model: 'kimi-k2.5:cloud',          source: 'cloud', description: 'Stable production model' },
+  { id: 'eburon-pro',      label: 'Eburon Pro',      badge: 'pro',     model: 'kimi-k2-thinking:cloud',   source: 'cloud', description: 'Advanced reasoning & deep thinking' },
+  { id: 'eburon-beta',     label: 'Eburon Beta',     badge: 'beta',    model: 'gpt-oss:120b-cloud',       source: 'cloud', description: 'Experimental 120B parameter model' },
+  { id: 'eburon-new',      label: 'Eburon New',      badge: 'new',     model: 'kimi-k2.5:cloud',          source: 'cloud', description: 'Latest release candidate' },
+];
+
+export const DEFAULT_MODEL = EBURON_MODELS[0];
+
+// Legacy compat — used by existing code paths
 export const MODELS = {
   CODEMAX_13: 'kimi-k2.5:cloud',
-  CODEMAX_PRO: 'kimi-k2.5:cloud',
-  CODEMAX_BETA: 'kimi-k2.5:cloud',
+  CODEMAX_PRO: 'kimi-k2-thinking:cloud',
+  CODEMAX_BETA: 'gpt-oss:120b-cloud',
   POLYAMA_CLOUD: 'kimi-k2.5:cloud',
   GEMMA_3: 'kimi-k2.5:cloud'
 };
