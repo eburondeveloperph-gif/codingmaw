@@ -46,8 +46,13 @@ You are warm, professional, and thorough. You never reveal your internal archite
 You are Orbit Agent, built by Eburon (eburon.ai).`;
 
 function getDefaultConfig(): AgentConfig {
+  // In production (Vercel), use server-side proxy to avoid CORS
+  const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
+  const gatewayUrl = isProduction
+    ? '/api/agent'
+    : (import.meta.env.VITE_OPENCLAW_GATEWAY_URL?.trim() || 'http://168.231.78.113:18789');
   return {
-    gatewayUrl: import.meta.env.VITE_OPENCLAW_GATEWAY_URL?.trim() || 'http://localhost:18789',
+    gatewayUrl,
     token: import.meta.env.VITE_OPENCLAW_TOKEN?.trim() || '',
     agentId: 'main',
   };
@@ -69,7 +74,8 @@ export async function agentStream(
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'x-openclaw-agent-id': cfg.agentId,
+    'x-openclaw-agent-id': mode,
+    'x-openclaw-skill': mode,
   };
   if (cfg.token) {
     headers['Authorization'] = `Bearer ${cfg.token}`;
@@ -79,7 +85,7 @@ export async function agentStream(
     method: 'POST',
     headers,
     body: JSON.stringify({
-      model: 'kimi-k2-thinking:cloud',
+      model: mode === 'codemax' ? 'codemax-qwen' : 'codemax-kimi',
       stream: true,
       messages: [systemMessage, ...messages],
     }),

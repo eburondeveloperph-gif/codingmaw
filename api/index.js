@@ -133,6 +133,59 @@ app.post('/api/ollama/chat', async (req, res) => {
   }
 });
 
+// ── OpenClaw Agent Proxy (avoids CORS in production) ──────────
+
+app.all('/api/agent/*', async (req, res) => {
+  const agentUrl = process.env.OPENCLAW_GATEWAY_URL || 'http://168.231.78.113:18789';
+  const targetPath = req.originalUrl.replace('/api/agent', '');
+
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (req.headers['x-openclaw-agent-id']) headers['x-openclaw-agent-id'] = req.headers['x-openclaw-agent-id'];
+    if (req.headers['x-openclaw-skill']) headers['x-openclaw-skill'] = req.headers['x-openclaw-skill'];
+    if (req.headers['authorization']) headers['Authorization'] = req.headers['authorization'];
+
+    const fetchOpts = {
+      method: req.method,
+      headers,
+    };
+    if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+      fetchOpts.body = JSON.stringify(req.body);
+    }
+
+    const upstream = await fetch(`${agentUrl}${targetPath}`, fetchOpts);
+
+    if (!upstream.ok) {
+      const errText = await upstream.text();
+      return res.status(upstream.status).send(errText);
+    }
+
+    // Check if response is SSE streaming
+    const contentType = upstream.headers.get('content-type') || '';
+    if (contentType.includes('text/event-stream')) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      const reader = upstream.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) { res.end(); return; }
+        res.write(Buffer.from(value));
+      }
+    } else {
+      // JSON response
+      const data = await upstream.json();
+      res.json(data);
+    }
+  } catch (err) {
+    console.error('Agent proxy error:', err);
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'Failed to reach OpenClaw Agent Gateway' });
+    }
+  }
+});
+
 // ── Health check (public) ──────────────────────────────────
 
 app.get('/api/health', async (req, res) => {
