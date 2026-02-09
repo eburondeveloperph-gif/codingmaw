@@ -45,6 +45,7 @@ import {
   GlobeAltIcon
 } from '@heroicons/react/24/outline';
 import BrowseSandbox from './components/BrowseSandbox';
+import CodePreview from './components/CodePreview';
 import { parseNewCommands, type BrowseCommand } from './services/browseCommands';
 import { agentSkillStream } from './services/agent';
 import { detectIntent, routeSkill } from './services/orchestrator';
@@ -89,6 +90,8 @@ const App: React.FC = () => {
   const [browseNarration, setBrowseNarration] = useState('');
   const browseExecCountRef = useRef(0);
   const [activeSkillLabel, setActiveSkillLabel] = useState<string | null>(null);
+  const [previewCode, setPreviewCode] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Admin / Ollama States
   const [showAdmin, setShowAdmin] = useState(false);
@@ -1126,76 +1129,17 @@ const App: React.FC = () => {
                               dangerouslySetInnerHTML={{ __html: typeof marked !== 'undefined' ? marked.parse(explanation) : explanation }} />
                           )}
 
-                          {code && (() => {
-                            const iframeId = `preview-${i}-${pi}`;
-                            return (
-                            <div className="space-y-3">
-                              {/* ── Live Preview (auto-rendered iframe) ── */}
-                              <div className="rounded-xl overflow-hidden border-2 border-blue-500/30 shadow-2xl">
-                                <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600">
-                                  <span className="text-[10px] font-black text-white uppercase tracking-widest flex items-center space-x-2">
-                                    <EyeIcon className="w-3.5 h-3.5" />
-                                    <span>Live Preview</span>
-                                  </span>
-                                  <div className="flex items-center space-x-1">
-                                    <button
-                                      onClick={() => { const blob = new Blob([code], {type:'text/html'}); window.open(URL.createObjectURL(blob), '_blank'); }}
-                                      className="flex items-center space-x-1.5 px-2.5 py-1 text-[10px] font-bold text-white/90 hover:text-white rounded-lg hover:bg-white/10 transition-all"
-                                      aria-label="Open in new tab"
-                                      title="Open in new tab"
-                                    >
-                                      <GlobeAltIcon className="w-3.5 h-3.5" />
-                                      <span className="hidden sm:inline">Full Screen</span>
-                                    </button>
-                                  </div>
-                                </div>
-                                <div className="bg-white relative" style={{ height: '60vh', minHeight: '300px', maxHeight: '600px' }}>
-                                  <iframe
-                                    id={iframeId}
-                                    srcDoc={code}
-                                    className="w-full h-full border-0"
-                                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-                                    title="Live preview of generated code"
-                                  />
-                                </div>
-                              </div>
-
-                              {/* ── Code + Actions (collapsed by default) ── */}
-                              <details className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700/50 shadow-lg group">
-                                <summary className="flex items-center justify-between px-3 md:px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800/80 cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-700/80 transition-colors select-none">
-                                  <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center space-x-2">
-                                    <CodeBracketSquareIcon className="w-3.5 h-3.5" />
-                                    <span>View Source Code</span>
-                                    <ChevronDownIcon className="w-3 h-3 transition-transform group-open:rotate-180" />
-                                  </span>
-                                  <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
-                                    <button
-                                      onClick={() => handleX10Improve(code, i)}
-                                      disabled={isGenerating}
-                                      className="flex items-center space-x-1.5 px-2.5 py-1.5 text-[10px] font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-all disabled:opacity-30"
-                                      aria-label="Improve code x10"
-                                      title="x10 Improve"
-                                    >
-                                      <ArrowPathIcon className="w-3.5 h-3.5" />
-                                      <span className="hidden sm:inline">x10</span>
-                                    </button>
-                                    <button
-                                      onClick={() => { navigator.clipboard.writeText(code); setCopiedIndex(i); setTimeout(() => setCopiedIndex(null), 2000); }}
-                                      className="flex items-center space-x-1.5 px-2.5 py-1.5 text-[10px] font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-white rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
-                                      aria-label="Copy code"
-                                    >
-                                      {copiedIndex === i ? <CheckIcon className="w-3.5 h-3.5 text-emerald-500" /> : <ClipboardIcon className="w-3.5 h-3.5" />}
-                                      <span className="hidden sm:inline">{copiedIndex === i ? 'Copied!' : 'Copy'}</span>
-                                    </button>
-                                  </div>
-                                </summary>
-                                <pre className="overflow-auto bg-zinc-50 dark:bg-[#0a0a0a] p-3 md:p-4 text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400 max-h-80 scrollbar-hide font-mono">
-                                  <code>{code}</code>
-                                </pre>
-                              </details>
-                            </div>
-                            );
-                          })()}
+              {code && (
+                <div className="mt-4">
+                  <button
+                    onClick={() => { setPreviewCode(code); setShowPreview(true); }}
+                    className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98] flex items-center justify-center space-x-2"
+                  >
+                    <EyeIcon className="w-5 h-5" />
+                    <span>Open Full Preview (Manus Mode)</span>
+                  </button>
+                </div>
+              )}
 
                           {/* Copy button for non-code responses */}
                           {!code && msg.role === 'model' && (
@@ -1612,6 +1556,14 @@ const App: React.FC = () => {
           onClose={() => setShowProfile(false)}
         />
       )}
+
+      {/* Full-Screen Code Preview Modal */}
+      <CodePreview
+        code={previewCode || ''}
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        title="Live Preview"
+      />
 
       <BrowseSandbox
         isOpen={browseSandboxOpen}
