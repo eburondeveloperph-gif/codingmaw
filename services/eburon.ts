@@ -36,6 +36,34 @@ export const MODELS = {
 export const CHAT_MODEL = 'gpt-oss:120b-cloud';
 export const CODE_MODEL = 'kimi-k2.5:cloud';
 
+// ── Fallback server model mapping ──────────────────────────
+// When using the self-hosted server (168.231.78.113), remap cloud model names
+// to the CodeMax-enhanced models that have the system prompt baked in.
+const FALLBACK_MODEL_MAP: Record<string, string> = {
+  'kimi-k2.5:cloud':        'codemax-qwen',
+  'kimi-k2-thinking:cloud': 'codemax-kimi',
+  'gpt-oss:120b-cloud':     'codemax-qwen',
+  'qwen3-coder-next:cloud': 'codemax-qwen',
+  'llama3.2:1b':            'codemax-llama',
+};
+
+// All models available on the fallback server
+export const FALLBACK_MODELS = [
+  'codemax-qwen',
+  'codemax-kimi',
+  'codemax-llama',
+  'translategemma',
+  'qwen3-coder-next:cloud',
+  'kimi-k2-thinking:cloud',
+  'llama3.2:1b',
+  'gemma3:4b',
+];
+
+/** Remap a cloud model name to its fallback server equivalent */
+export function mapToFallbackModel(modelName: string): string {
+  return FALLBACK_MODEL_MAP[modelName] || modelName;
+}
+
 export interface Message {
   role: 'user' | 'model';
   parts: { text?: string; inlineData?: { data: string; mimeType: string } }[];
@@ -478,12 +506,21 @@ export async function chatStream(
     // Fallback: in production the proxy handles it; in dev try the self-hosted server
     const fallbackUrl = import.meta.env.VITE_OLLAMA_FALLBACK_URL?.trim();
     if (!useProxy && fallbackUrl) {
-      console.warn('Primary Ollama failed, trying fallback:', fallbackUrl);
+      const fallbackModel = mapToFallbackModel(modelName);
+      console.warn(`Primary Ollama failed, trying fallback: ${fallbackUrl} with model ${fallbackModel}`);
+      const fallbackBody = JSON.stringify({
+        model: fallbackModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...messages
+        ],
+        stream: true
+      });
       try {
         response = await fetch(`${fallbackUrl}/api/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: requestBody,
+          body: fallbackBody,
           signal
         });
         if (!response!.ok) {

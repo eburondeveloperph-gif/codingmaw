@@ -101,13 +101,25 @@ app.post('/api/ollama/chat', async (req, res) => {
     }
   }
 
-  // Try fallback (self-hosted server)
+  // Try fallback (self-hosted server) — remap model names to CodeMax models
   if (!res.headersSent) {
+    const fallbackModelMap = {
+      'kimi-k2.5:cloud':        'codemax-qwen',
+      'kimi-k2-thinking:cloud': 'codemax-kimi',
+      'gpt-oss:120b-cloud':     'codemax-qwen',
+      'qwen3-coder-next:cloud': 'codemax-qwen',
+      'llama3.2:1b':            'codemax-llama',
+    };
+    const fallbackBody = { ...req.body };
+    if (fallbackBody.model && fallbackModelMap[fallbackBody.model]) {
+      console.log(`Remapping model: ${fallbackBody.model} → ${fallbackModelMap[fallbackBody.model]}`);
+      fallbackBody.model = fallbackModelMap[fallbackBody.model];
+    }
     try {
       await tryOllamaEndpoint(
         `${fallbackUrl}/api/chat`,
         { 'Content-Type': 'application/json' },
-        req.body,
+        fallbackBody,
         res
       );
       return;
