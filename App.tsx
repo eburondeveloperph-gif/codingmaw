@@ -94,10 +94,12 @@ const App: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [asrAvailable, setAsrAvailable] = useState(false);
-  const [sttMode, setSttMode] = useState<'browser' | 'voxtral'>('browser');
+  const [sttSupported, setSttSupported] = useState(true);
+  const [sttError, setSttError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const speechRecRef = useRef<any>(null);
+  const hasSpeechRecognition = typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
 
   // Persistence States
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -253,32 +255,95 @@ const App: React.FC = () => {
     detectOllamaModels(localUrl);
   }, [user?.ollama_local_url]);
 
-  // Check Eburon ASR availability on mount; fallback to browser SpeechRecognition
+  // Check STT capabilities on mount
   useEffect(() => {
-    checkAsrHealth().then((ok) => {
-      setAsrAvailable(ok);
-      if (ok) setSttMode('voxtral');
-    });
+    checkAsrHealth().then(setAsrAvailable);
+    // STT is supported if browser has SpeechRecognition OR if MediaRecorder is available (for ASR fallback)
+    const hasMediaRecorder = typeof MediaRecorder !== 'undefined';
+    if (!hasSpeechRecognition && !hasMediaRecorder) {
+      setSttSupported(false);
+    }
   }, []);
 
   const startRecording = async () => {
-    // If Voxtral ASR is available, use it (higher quality)
-    if (sttMode === 'voxtral' && asrAvailable) {
+    setSttError(null);
+
+    // Haptic feedback on mobile
+    if (navigator.vibrate) navigator.vibrate(50);
+
+    // ── Tier 1: Browser SpeechRecognition (Chrome desktop, Chrome Android, TWA) ──
+    if (hasSpeechRecognition) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = navigator.language || 'en-US';
+
+      const baseInput = input ? input + ' ' : '';
+      let finalTranscript = '';
+
+      recognition.onresult = (event: any) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' ';
+          } else {
+            interim = transcript;
+          }
+        }
+        const sttText = (finalTranscript + interim).trim();
+        if (sttText) setInput(baseInput + sttText);
+      };
+
+      recognition.onerror = (event: any) => {
+        if (event.error === 'not-allowed') {
+          setSttError('Microphone permission denied. Please allow microphone access.');
+        } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+          setSttError(`Speech recognition error: ${event.error}`);
+        }
+        setIsRecording(false);
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+        speechRecRef.current = null;
+        if (navigator.vibrate) navigator.vibrate(30);
+      };
+
+      speechRecRef.current = recognition;
+      recognition.start();
+      setIsRecording(true);
+      return;
+    }
+
+    // ── Tier 2: MediaRecorder + ASR backend (iOS, Android WebView, any mobile browser) ──
+    if (typeof MediaRecorder !== 'undefined') {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
-        const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4' });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000, channelCount: 1 }
+        });
+
+        // Pick best supported MIME type for mobile
+        const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/aac', '']
+          .find(t => t === '' || MediaRecorder.isTypeSupported(t)) || '';
+        const options: MediaRecorderOptions = mimeType ? { mimeType } : {};
+
+        const mediaRecorder = new MediaRecorder(stream, options);
         audioChunksRef.current = [];
         mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
         mediaRecorder.onstop = async () => {
           stream.getTracks().forEach(t => t.stop());
-          const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+          const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' });
           if (audioBlob.size < 100) return;
+          if (navigator.vibrate) navigator.vibrate(30);
           setIsTranscribing(true);
           try {
             const text = await transcribeAudio(audioBlob);
             if (text) setInput(prev => prev ? `${prev} ${text}` : text);
-          } catch (err) {
-            console.error('Eburon ASR error:', err);
+          } catch (err: any) {
+            setSttError('Transcription failed. Check ASR service connection.');
+            console.error('ASR transcription error:', err);
           } finally {
             setIsTranscribing(false);
           }
@@ -286,55 +351,19 @@ const App: React.FC = () => {
         mediaRecorderRef.current = mediaRecorder;
         mediaRecorder.start(250);
         setIsRecording(true);
-      } catch (err) {
-        console.error('Microphone access denied:', err);
-      }
-      return;
-    }
-
-    // Browser SpeechRecognition API (default — works without backend)
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.error('SpeechRecognition not supported in this browser');
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-
-    // Capture current input as the base before recording
-    const baseInput = input ? input + ' ' : '';
-    let finalTranscript = '';
-
-    recognition.onresult = (event: any) => {
-      let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript + ' ';
+      } catch (err: any) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setSttError('Microphone permission denied. Please allow access in your device settings.');
         } else {
-          interim = transcript;
+          setSttError('Could not access microphone. Please check your device settings.');
         }
+        console.error('getUserMedia error:', err);
       }
-      const sttText = (finalTranscript + interim).trim();
-      if (sttText) setInput(baseInput + sttText);
-    };
+      return;
+    }
 
-    recognition.onerror = (event: any) => {
-      if (event.error !== 'no-speech') console.error('SpeechRecognition error:', event.error);
-      setIsRecording(false);
-    };
-
-    recognition.onend = () => {
-      setIsRecording(false);
-      speechRecRef.current = null;
-    };
-
-    speechRecRef.current = recognition;
-    recognition.start();
-    setIsRecording(true);
+    // ── Tier 3: No STT available ──
+    setSttError('Speech-to-text not available on this device.');
   };
 
   const stopRecording = () => {
@@ -927,30 +956,37 @@ const App: React.FC = () => {
                   <button onClick={() => fileInputRef.current?.click()} disabled={isGenerating} className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors disabled:opacity-30" aria-label="Upload image">
                     <PhotoIcon className="w-5 h-5" />
                   </button>
-                  {/* Eburon ASR Microphone */}
-                  {isRecording ? (
-                    <button
-                      onClick={stopRecording}
-                      className="p-2.5 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-xl active:scale-90 animate-pulse"
-                      aria-label="Stop recording"
-                      title="Stop recording — transcribe speech"
-                    >
-                      <StopIcon className="w-5 h-5" />
-                    </button>
-                  ) : isTranscribing ? (
-                    <button disabled className="p-2.5 bg-purple-500/80 text-white rounded-full opacity-80" aria-label="Transcribing">
-                      <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={startRecording}
-                      disabled={isGenerating}
-                      className="p-2 text-zinc-500 hover:text-purple-500 dark:hover:text-purple-400 transition-colors disabled:opacity-30"
-                      aria-label="Voice input — Eburon ASR"
-                      title="Voice input (Eburon ASR)"
-                    >
-                      <MicrophoneIcon className="w-5 h-5" />
-                    </button>
+                  {/* STT Microphone — works on desktop, mobile APK, iOS, Android WebView */}
+                  {sttSupported && (
+                    <>
+                      {sttError && (
+                        <span className="text-[10px] text-red-500 max-w-[120px] truncate" title={sttError}>{sttError}</span>
+                      )}
+                      {isRecording ? (
+                        <button
+                          onClick={stopRecording}
+                          className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-xl active:scale-90 animate-pulse"
+                          aria-label="Stop recording"
+                          title="Tap to stop recording"
+                        >
+                          <StopIcon className="w-5 h-5" />
+                        </button>
+                      ) : isTranscribing ? (
+                        <button disabled className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center bg-purple-500/80 text-white rounded-full opacity-80" aria-label="Transcribing">
+                          <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={startRecording}
+                          disabled={isGenerating}
+                          className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-zinc-500 hover:text-purple-500 dark:hover:text-purple-400 transition-colors disabled:opacity-30 active:scale-90"
+                          aria-label="Voice input"
+                          title="Tap to speak"
+                        >
+                          <MicrophoneIcon className="w-5 h-5" />
+                        </button>
+                      )}
+                    </>
                   )}
                   {isGenerating ? (
                     <button

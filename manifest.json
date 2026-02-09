@@ -1,0 +1,20 @@
+{
+  "name": "Eburon AI — CodeMax Architect",
+  "short_name": "Eburon AI",
+  "description": "AI coding assistant powered by Eburon AI Orbit Model",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0e0e11",
+  "theme_color": "#0e0e11",
+  "lang": "en",
+  "permissions": ["microphone"],
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
