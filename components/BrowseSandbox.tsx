@@ -199,39 +199,38 @@ const BrowseSandbox: React.FC<BrowseSandboxProps> = ({ onClose, isOpen, pendingC
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 md:p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden border border-zinc-200 dark:border-zinc-700">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center md:p-4">
+      <div className="bg-white dark:bg-zinc-900 rounded-t-2xl md:rounded-2xl shadow-2xl w-full md:max-w-5xl h-[95dvh] md:h-[90vh] flex flex-col overflow-hidden border border-zinc-200 dark:border-zinc-700">
 
-        {/* Header */}
-        <div className="flex items-center gap-2 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 shrink-0">
-          <GlobeAltIcon className="w-5 h-5 text-emerald-500 shrink-0" />
-          <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider hidden sm:inline">Sandbox</span>
+        {/* Header — compact on mobile */}
+        <div className="flex items-center gap-1.5 px-2 md:px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 shrink-0">
+          <GlobeAltIcon className="w-4 h-4 md:w-5 md:h-5 text-emerald-500 shrink-0" />
 
           {/* URL Bar */}
-          <div className="flex-1 flex items-center gap-1">
-            <button onClick={handleBack} disabled={loading} className="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition disabled:opacity-30" title="Back">
-              <ArrowLeftIcon className="w-4 h-4" />
+          <div className="flex-1 flex items-center gap-1 min-w-0">
+            <button onClick={handleBack} disabled={loading} className="p-1 md:p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition disabled:opacity-30 shrink-0" title="Back">
+              <ArrowLeftIcon className="w-3.5 h-3.5 md:w-4 md:h-4" />
             </button>
-            <button onClick={handleScreenshot} disabled={loading} className="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition disabled:opacity-30" title="Refresh">
-              <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <button onClick={handleScreenshot} disabled={loading} className="p-1 md:p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition disabled:opacity-30 shrink-0" title="Refresh">
+              <ArrowPathIcon className={`w-3.5 h-3.5 md:w-4 md:h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
-            <form onSubmit={(e) => { e.preventDefault(); handleNavigate(); }} className="flex-1 flex">
+            <form onSubmit={(e) => { e.preventDefault(); handleNavigate(); }} className="flex-1 flex min-w-0">
               <input
                 ref={urlRef}
                 type="text"
                 value={urlInput}
                 onChange={(e) => setUrlInput(e.target.value)}
                 placeholder="Enter URL..."
-                className="flex-1 px-3 py-1.5 text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                className="flex-1 min-w-0 px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
-              <button type="submit" disabled={loading} className="ml-1 px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition disabled:opacity-50" title="Navigate to URL" aria-label="Navigate to URL">
+              <button type="submit" disabled={loading} className="ml-1 px-2 md:px-3 py-1 md:py-1.5 bg-emerald-600 text-white text-[10px] md:text-xs font-bold rounded-lg hover:bg-emerald-700 transition disabled:opacity-50 shrink-0" title="Navigate to URL" aria-label="Navigate to URL">
                 Go
               </button>
             </form>
           </div>
 
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition" title="Close">
-            <XMarkIcon className="w-5 h-5" />
+          <button onClick={onClose} className="p-1 md:p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 transition shrink-0" title="Close">
+            <XMarkIcon className="w-4 h-4 md:w-5 md:h-5" />
           </button>
         </div>
 
@@ -322,29 +321,36 @@ const BrowseSandbox: React.FC<BrowseSandboxProps> = ({ onClose, isOpen, pendingC
           )}
         </div>
 
-        {/* Action bar */}
-        <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2">
-          <div className="flex items-center gap-2">
+        {/* Action bar — responsive */}
+        <div className="shrink-0 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-2 md:px-3 py-1.5 md:py-2 space-y-1.5">
+          {/* Agent narration (top, most visible) */}
+          {agentNarration && (
+            <div className="px-2 py-1.5 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+              <p className="text-[11px] text-purple-400 font-medium leading-snug line-clamp-2">{agentNarration}</p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5">
             {/* Quick actions */}
-            <div className="flex items-center gap-1">
-              <button onClick={() => handleScroll('up')} disabled={loading || !screenshotSrc} className="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition disabled:opacity-30" title="Scroll Up">
-                <ArrowUpIcon className="w-4 h-4" />
+            <div className="flex items-center gap-0.5">
+              <button onClick={() => handleScroll('up')} disabled={loading || !screenshotSrc} className="p-1 md:p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition disabled:opacity-30" title="Scroll Up">
+                <ArrowUpIcon className="w-3.5 h-3.5 md:w-4 md:h-4" />
               </button>
-              <button onClick={() => handleScroll('down')} disabled={loading || !screenshotSrc} className="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition disabled:opacity-30" title="Scroll Down">
-                <ArrowDownIcon className="w-4 h-4" />
+              <button onClick={() => handleScroll('down')} disabled={loading || !screenshotSrc} className="p-1 md:p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition disabled:opacity-30" title="Scroll Down">
+                <ArrowDownIcon className="w-3.5 h-3.5 md:w-4 md:h-4" />
               </button>
-              <button onClick={handleGetContent} disabled={loading || !screenshotSrc} className="p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition disabled:opacity-30" title="Extract Content">
-                <DocumentTextIcon className="w-4 h-4" />
+              <button onClick={handleGetContent} disabled={loading || !screenshotSrc} className="p-1 md:p-1.5 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition disabled:opacity-30" title="Extract Content">
+                <DocumentTextIcon className="w-3.5 h-3.5 md:w-4 md:h-4" />
               </button>
             </div>
 
-            <div className="h-5 w-px bg-zinc-300 dark:bg-zinc-600" />
+            <div className="h-4 w-px bg-zinc-300 dark:bg-zinc-600 shrink-0" />
 
-            {/* Action type selector */}
+            {/* Action type */}
             <select
               value={actionType}
               onChange={(e) => setActionType(e.target.value as 'click' | 'type' | 'fill')}
-              className="text-xs px-2 py-1.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600"
+              className="text-[10px] md:text-xs px-1.5 md:px-2 py-1 md:py-1.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 shrink-0"
               title="Action type" aria-label="Action type"
             >
               <option value="click">Click</option>
@@ -353,33 +359,26 @@ const BrowseSandbox: React.FC<BrowseSandboxProps> = ({ onClose, isOpen, pendingC
             </select>
 
             {/* Action input */}
-            <form onSubmit={(e) => { e.preventDefault(); handleAction(); }} className="flex-1 flex">
+            <form onSubmit={(e) => { e.preventDefault(); handleAction(); }} className="flex-1 flex min-w-0">
               <input
                 type="text"
                 value={actionInput}
                 onChange={(e) => setActionInput(e.target.value)}
-                placeholder={actionType === 'click' ? 'CSS selector to click' : actionType === 'type' ? 'selector|text to type' : 'Submit button selector (or empty for Enter)'}
-                className="flex-1 px-3 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                placeholder={actionType === 'click' ? 'Selector' : actionType === 'type' ? 'selector|text' : 'Submit selector'}
+                className="flex-1 min-w-0 px-2 py-1 md:py-1.5 text-[10px] md:text-xs bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
-              <button type="submit" disabled={loading} className="ml-1 p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition disabled:opacity-50" title="Execute action" aria-label="Execute action">
-                <PaperAirplaneIcon className="w-4 h-4" />
+              <button type="submit" disabled={loading} className="ml-1 p-1 md:p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition disabled:opacity-50 shrink-0" title="Execute action" aria-label="Execute action">
+                <PaperAirplaneIcon className="w-3.5 h-3.5 md:w-4 md:h-4" />
               </button>
             </form>
           </div>
 
-          {/* Agent narration */}
-          {agentNarration && (
-            <div className="mt-1.5 px-2 py-1.5 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-              <p className="text-[11px] text-purple-400 font-medium leading-snug line-clamp-2">{agentNarration}</p>
-            </div>
-          )}
-
           {/* Error / Log */}
-          {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+          {error && <p className="text-[10px] md:text-xs text-red-500 mt-1">{error}</p>}
           {logs.length > 0 && (
-            <div className="mt-1.5 max-h-20 overflow-y-auto scrollbar-hide">
-              {logs.slice(-5).map((log, i) => (
-                <p key={i} className="text-[10px] text-zinc-400 font-mono">{log}</p>
+            <div className="max-h-12 md:max-h-20 overflow-y-auto scrollbar-hide">
+              {logs.slice(-3).map((log, i) => (
+                <p key={i} className="text-[9px] md:text-[10px] text-zinc-400 font-mono truncate">{log}</p>
               ))}
             </div>
           )}
