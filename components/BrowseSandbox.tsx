@@ -262,7 +262,7 @@ const BrowseSandbox: React.FC<BrowseSandboxProps> = ({ onClose, isOpen }) => {
             <div className="w-72 border-l border-zinc-200 dark:border-zinc-700 overflow-y-auto bg-white dark:bg-zinc-900 shrink-0">
               <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-200 dark:border-zinc-700">
                 <span className="text-xs font-bold uppercase text-zinc-500">Page Content</span>
-                <button onClick={() => setShowContent(false)} className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700">
+                <button onClick={() => setShowContent(false)} className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700" title="Close content panel" aria-label="Close content panel">
                   <XMarkIcon className="w-3.5 h-3.5" />
                 </button>
               </div>
