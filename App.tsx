@@ -41,8 +41,10 @@ import {
   TrashIcon,
   ExclamationTriangleIcon,
   MicrophoneIcon,
-  StopIcon
+  StopIcon,
+  GlobeAltIcon
 } from '@heroicons/react/24/outline';
+import BrowseSandbox from './components/BrowseSandbox';
 
 declare const marked: any;
 declare const hljs: any;
@@ -79,6 +81,7 @@ const App: React.FC = () => {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [deepThink, setDeepThink] = useState(false);
   const [appMode, setAppMode] = useState<'code' | 'chat'>('code');
+  const [browseSandboxOpen, setBrowseSandboxOpen] = useState(false);
 
   // Admin / Ollama States
   const [showAdmin, setShowAdmin] = useState(false);
@@ -806,6 +809,13 @@ const App: React.FC = () => {
             <SignalIcon className="w-4 h-4" />
             <span>Apps & Skills</span>
           </a>
+          <button
+            onClick={() => { setBrowseSandboxOpen(true); setSidebarOpen(false); }}
+            className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-6 hover:bg-cyan-500/10 hover:text-cyan-500 transition-colors"
+          >
+            <GlobeAltIcon className="w-4 h-4" />
+            <span>Web Browser</span>
+          </button>
           {isAdmin && (
             <button
               onClick={() => setShowAdmin(true)}
@@ -1391,6 +1401,8 @@ const App: React.FC = () => {
           onClose={() => setShowProfile(false)}
         />
       )}
+
+      <BrowseSandbox isOpen={browseSandboxOpen} onClose={() => setBrowseSandboxOpen(false)} />
     </div>
   );
 };

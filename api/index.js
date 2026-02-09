@@ -186,6 +186,25 @@ app.all('/api/agent/*', async (req, res) => {
   }
 });
 
+// ── OpenClaw Browser Proxy (Playwright browsing) ──────────
+
+app.all('/api/browse/*', async (req, res) => {
+  const browseUrl = process.env.OPENCLAW_BROWSE_URL || 'http://168.231.78.113:18790';
+  const targetPath = req.originalUrl.replace('/api/browse', '');
+
+  try {
+    const fetchOpts = { method: req.method, headers: { 'Content-Type': 'application/json' } };
+    if (req.method === 'POST') fetchOpts.body = JSON.stringify(req.body);
+
+    const upstream = await fetch(`${browseUrl}${targetPath}`, fetchOpts);
+    const data = await upstream.json();
+    res.status(upstream.status).json(data);
+  } catch (err) {
+    console.error('Browse proxy error:', err);
+    if (!res.headersSent) res.status(502).json({ error: 'Failed to reach Browser Service' });
+  }
+});
+
 // ── Health check (public) ──────────────────────────────────
 
 app.get('/api/health', async (req, res) => {
