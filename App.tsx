@@ -852,7 +852,7 @@ const App: React.FC = () => {
                       if (isStreaming) {
                         return (
                           <div key={pi} className="relative">
-                            <pre className="font-mono text-xs md:text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap break-words max-h-[60vh] overflow-y-auto scrollbar-hide">
+                            <pre className="font-mono text-xs md:text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap break-words">
                               {part.text}
                             </pre>
                             <span className="inline-block w-1.5 h-4 bg-blue-500 ml-0.5 animate-pulse rounded-sm align-text-bottom" />
