@@ -914,7 +914,7 @@ const App: React.FC = () => {
         </header>
 
         {/* Chat Stream */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-8 space-y-6 md:space-y-10 scrollbar-hide max-w-4xl mx-auto w-full">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 md:px-6 py-4 md:py-8 space-y-6 md:space-y-10 scrollbar-hide scroll-smooth-native max-w-4xl mx-auto w-full">
           {messages.length === 0 && (
             <div className="h-full flex flex-col items-center justify-center text-center py-20 animate-in fade-in duration-1000">
               <Logo className="w-12 h-12 mb-8 opacity-20 grayscale" />
