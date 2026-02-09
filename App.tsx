@@ -126,7 +126,13 @@ const App: React.FC = () => {
   }, [theme]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: isGenerating ? 'auto' : 'smooth' });
+    if (scrollRef.current) {
+      if (isGenerating) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      } else {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
   }, [messages, isGenerating]);
 
   useEffect(() => {
@@ -480,7 +486,11 @@ const App: React.FC = () => {
             return updated;
           });
           aiText = chunk;
-          requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'auto' }));
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            });
+          });
         }, appMode, controller.signal);
       } else {
         await chatStream(effectiveModel, [...messages, userMessage], (chunk) => {
@@ -490,7 +500,11 @@ const App: React.FC = () => {
             return updated;
           });
           aiText = chunk;
-          requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: 'auto' }));
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            });
+          });
         }, appMode, controller.signal);
       }
 
