@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
+import { buildMemoryContext } from './memory';
+
 export interface EburonModel {
   id: string;
   label: string;
@@ -444,6 +446,10 @@ export async function chatStream(
     content: msg.parts.map(p => p.text).join('\n')
   }));
 
+  const memoryCtx = buildMemoryContext();
+  const systemPrompt = (mode === 'chat' ? CHAT_SYSTEM_INSTRUCTION : SYSTEM_INSTRUCTION)
+    + (memoryCtx ? '\n\n' + memoryCtx : '');
+
   const response = await fetch(`${cloudUrl}/api/chat`, {
     method: 'POST',
     headers: {
@@ -453,7 +459,7 @@ export async function chatStream(
     body: JSON.stringify({
       model: modelName,
       messages: [
-        { role: 'system', content: mode === 'chat' ? CHAT_SYSTEM_INSTRUCTION : SYSTEM_INSTRUCTION },
+        { role: 'system', content: systemPrompt },
         ...messages
       ],
       stream: true
@@ -515,13 +521,17 @@ export async function chatOllamaStream(
     content: msg.parts.map(p => p.text).join('\n')
   }));
 
+  const memoryCtxLocal = buildMemoryContext();
+  const systemPromptLocal = (mode === 'chat' ? CHAT_SYSTEM_INSTRUCTION : SYSTEM_INSTRUCTION)
+    + (memoryCtxLocal ? '\n\n' + memoryCtxLocal : '');
+
   const response = await fetch(`${url}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: modelName,
       messages: [
-        { role: 'system', content: mode === 'chat' ? CHAT_SYSTEM_INSTRUCTION : SYSTEM_INSTRUCTION },
+        { role: 'system', content: systemPromptLocal },
         ...messages
       ],
       stream: true

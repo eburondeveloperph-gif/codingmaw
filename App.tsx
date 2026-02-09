@@ -8,6 +8,7 @@ import { Logo } from './components/Logo';
 import { Creation } from './components/CreationHistory';
 import { MODELS, CHAT_MODEL, CODE_MODEL, Message, chatStream, chatOllamaStream, EBURON_MODELS, DEFAULT_MODEL, type EburonModel } from './services/eburon';
 import { transcribeAudio, checkAsrHealth } from './services/asr';
+import { learnFromGeneration, buildX10Prompt, addLongTermMemory } from './services/memory';
 import * as api from './services/api';
 import { googleSearch, formatSearchResultsForPrompt } from './services/search';
 import { listLocalModels, pullModel, deleteModel, searchModels, formatSize, POPULAR_MODELS, type OllamaModel, type PullProgress } from './services/ollamaModels';
@@ -508,6 +509,11 @@ const App: React.FC = () => {
         }, appMode, controller.signal);
       }
 
+      // Learn from this generation (agent memory)
+      if (appMode === 'code' && aiText) {
+        try { learnFromGeneration(promptText, aiText); } catch {}
+      }
+
       // Persist AI response
       if (dbConnected && convId) {
         try {
@@ -555,6 +561,84 @@ const App: React.FC = () => {
     const after = text.slice(idx + html.length).trim();
     const explanation = [before, after].filter(Boolean).join('\n\n');
     return { explanation, code: html };
+  };
+
+  const handleX10Improve = async (code: string, originalMsgIndex: number) => {
+    if (isGenerating) return;
+
+    // Find the original user prompt for this code
+    let originalPrompt = 'Improve this code';
+    for (let j = originalMsgIndex - 1; j >= 0; j--) {
+      if (messages[j].role === 'user') {
+        originalPrompt = messages[j].parts[0]?.text || originalPrompt;
+        break;
+      }
+    }
+
+    const x10Prompt = buildX10Prompt(originalPrompt, code);
+    addLongTermMemory('improvement', `x10 improvement of: "${originalPrompt.slice(0, 80)}"`, ['x10']);
+
+    const userMessage: Message = {
+      role: 'user',
+      parts: [{ text: `🔄 x10 Improve: ${originalPrompt.slice(0, 60)}...` }]
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setIsGenerating(true);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    let aiText = '';
+    const effectiveModel = activeModel;
+    setMessages(prev => [...prev, { role: 'model', parts: [{ text: '' }], modelName: effectiveModel }]);
+
+    try {
+      const x10Messages: Message[] = [{ role: 'user', parts: [{ text: x10Prompt }] }];
+      const isOllama = ollamaModels.includes(effectiveModel);
+
+      if (isOllama) {
+        await chatOllamaStream(ollamaUrl, effectiveModel, x10Messages, (chunk) => {
+          setMessages(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1].parts[0].text = chunk;
+            return updated;
+          });
+          aiText = chunk;
+          requestAnimationFrame(() => { requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }); });
+        }, 'code', controller.signal);
+      } else {
+        await chatStream(effectiveModel, x10Messages, (chunk) => {
+          setMessages(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1].parts[0].text = chunk;
+            return updated;
+          });
+          aiText = chunk;
+          requestAnimationFrame(() => { requestAnimationFrame(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }); });
+        }, 'code', controller.signal);
+      }
+
+      if (aiText) {
+        try { learnFromGeneration(originalPrompt + ' (x10)', aiText); } catch {}
+      }
+
+      const html = extractHtml(aiText);
+      if (html && dbConnected) {
+        try {
+          const saved = await api.createCreation({ name: `x10: ${originalPrompt.slice(0, 25)}...`, html });
+          if (saved.id) {
+            setCreationHistory(prev => [{ id: saved.id, name: `x10: ${originalPrompt.slice(0, 25)}...`, html, timestamp: new Date() }, ...prev]);
+          }
+        } catch {}
+      }
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === 'AbortError')) {
+        setMessages(prev => [...prev, { role: 'model', parts: [{ text: `x10 improvement failed: ${err instanceof Error ? err.message : String(err)}` }] }]);
+      }
+    } finally {
+      abortControllerRef.current = null;
+      setIsGenerating(false);
+    }
   };
 
   const handleCopyCode = (text: string, index: number) => {
@@ -878,6 +962,16 @@ const App: React.FC = () => {
                                   <span>Generated Code</span>
                                 </span>
                                 <div className="flex items-center space-x-1">
+                                  <button
+                                    onClick={() => handleX10Improve(code, i)}
+                                    disabled={isGenerating}
+                                    className="flex items-center space-x-1.5 px-2.5 py-1.5 text-[10px] font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-all disabled:opacity-30"
+                                    aria-label="Improve code x10"
+                                    title="x10 Improve — regenerate with premium enhancements"
+                                  >
+                                    <ArrowPathIcon className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">x10</span>
+                                  </button>
                                   <button
                                     onClick={() => { navigator.clipboard.writeText(code); setCopiedIndex(i); setTimeout(() => setCopiedIndex(null), 2000); }}
                                     className="flex items-center space-x-1.5 px-2.5 py-1.5 text-[10px] font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-white rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
