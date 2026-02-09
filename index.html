@@ -6,7 +6,7 @@
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <link rel="apple-touch-icon" href="/vite.svg" />
   <link rel="manifest" href="/manifest.json" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Eburon | CodeMax Architect AI</title>
   <script>
     // Prevent flash of wrong theme — apply saved preference immediately
@@ -111,6 +111,35 @@
       margin-bottom: 1.25rem;
       line-height: 1.7;
       font-size: 0.9rem;
+    }
+
+    @keyframes orbit-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.6); }
+    }
+    @keyframes orbit-shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    @keyframes orbit-glow {
+      0%, 100% { box-shadow: 0 0 4px currentColor; }
+      50% { box-shadow: 0 0 12px currentColor, 0 0 24px currentColor; }
+    }
+    .orbit-dot {
+      animation: orbit-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    .orbit-dot:nth-child(2) { animation-delay: 0.15s; }
+    .orbit-dot:nth-child(3) { animation-delay: 0.3s; }
+    .orbit-shimmer-bar {
+      background: linear-gradient(90deg, transparent 0%, currentColor 50%, transparent 100%);
+      background-size: 200% 100%;
+      animation: orbit-shimmer 2s ease-in-out infinite;
+      height: 2px;
+      border-radius: 999px;
+      opacity: 0.3;
+    }
+    .orbit-ring {
+      animation: orbit-glow 1.5s ease-in-out infinite;
     }
 
     @keyframes fade-in {

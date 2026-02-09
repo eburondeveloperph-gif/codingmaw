@@ -1171,16 +1171,19 @@ const App: React.FC = () => {
         <div className="px-3 md:px-6 pb-[72px] md:pb-4 shrink-0 sticky bottom-0 z-20 bg-white dark:bg-[#0e0e11]">
           <div className="max-w-3xl mx-auto">
             <div className={`relative bg-zinc-50 dark:bg-[#1c1c1f] border rounded-[24px] p-4 shadow-2xl transition-all ${isGenerating ? 'border-blue-500/30 ring-1 ring-blue-500/20' : 'border-zinc-200 dark:border-zinc-800 focus-within:ring-1 focus-within:ring-zinc-400 dark:focus-within:ring-zinc-600 focus-within:bg-white dark:focus-within:bg-[#202024]'}`}>
-              {/* Loading indicator overlay inside textarea area */}
+              {/* Intense loading indicator */}
               {isGenerating && (
-                <div className="absolute top-4 left-4 right-4 flex items-center space-x-3 pointer-events-none z-10">
-                  <div className="flex items-center space-x-2">
-                    <div className="flex space-x-1">
-                      <span className={`w-1.5 h-1.5 rounded-full animate-bounce delay-0 ${activeSkillLabel ? 'bg-purple-500' : 'bg-blue-500'}`}></span>
-                      <span className={`w-1.5 h-1.5 rounded-full animate-bounce delay-150 ${activeSkillLabel ? 'bg-purple-500' : 'bg-blue-500'}`}></span>
-                      <span className={`w-1.5 h-1.5 rounded-full animate-bounce delay-300 ${activeSkillLabel ? 'bg-purple-500' : 'bg-blue-500'}`}></span>
+                <div className="absolute inset-x-0 top-0 pointer-events-none z-10">
+                  {/* Shimmer bar across top */}
+                  <div className={`orbit-shimmer-bar w-full ${activeSkillLabel ? 'text-purple-500' : 'text-blue-500'}`} />
+                  {/* Dots + label */}
+                  <div className="flex items-center space-x-2.5 px-4 pt-3">
+                    <div className="flex space-x-1.5">
+                      <span className={`w-2 h-2 rounded-full orbit-dot orbit-ring ${activeSkillLabel ? 'bg-purple-500 text-purple-500' : 'bg-blue-500 text-blue-500'}`}></span>
+                      <span className={`w-2 h-2 rounded-full orbit-dot orbit-ring ${activeSkillLabel ? 'bg-purple-500 text-purple-500' : 'bg-blue-500 text-blue-500'}`}></span>
+                      <span className={`w-2 h-2 rounded-full orbit-dot orbit-ring ${activeSkillLabel ? 'bg-purple-500 text-purple-500' : 'bg-blue-500 text-blue-500'}`}></span>
                     </div>
-                    <span className={`text-[10px] font-bold uppercase tracking-widest ${activeSkillLabel ? 'text-purple-500' : 'text-blue-500'}`}>
+                    <span className={`text-[10px] font-black uppercase tracking-[0.2em] animate-pulse ${activeSkillLabel ? 'text-purple-500' : 'text-blue-500'}`}>
                       {activeSkillLabel ? `${activeSkillLabel}...` : appMode === 'code' ? 'Generating code...' : 'Thinking...'}
                     </span>
                   </div>
