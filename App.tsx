@@ -59,7 +59,12 @@ const App: React.FC = () => {
   const { user, logout, updateUser } = useAuth();
   const isAdmin = user?.email === 'master@eburon.ai';
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('prompt') || '';
+    } catch { return ''; }
+  });
   const [activeModel, setActiveModel] = useState(DEFAULT_MODEL.model);
   const [activeEburonModel, setActiveEburonModel] = useState<EburonModel>(DEFAULT_MODEL);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -255,14 +260,24 @@ const App: React.FC = () => {
     detectOllamaModels(localUrl);
   }, [user?.ollama_local_url]);
 
-  // Check STT capabilities on mount
+  // Check STT capabilities on mount + handle ?stt=1 and ?prompt= from Skills page
   useEffect(() => {
     checkAsrHealth().then(setAsrAvailable);
-    // STT is supported if browser has SpeechRecognition OR if MediaRecorder is available (for ASR fallback)
     const hasMediaRecorder = typeof MediaRecorder !== 'undefined';
     if (!hasSpeechRecognition && !hasMediaRecorder) {
       setSttSupported(false);
     }
+    // Auto-start STT if redirected from Skills page with ?stt=1
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('stt') === '1') {
+        setTimeout(() => startRecording(), 500);
+      }
+      // Clean up URL params
+      if (params.has('prompt') || params.has('stt')) {
+        window.history.replaceState({}, '', '/');
+      }
+    } catch {}
   }, []);
 
   const startRecording = async () => {
@@ -687,11 +702,11 @@ const App: React.FC = () => {
             <span>Orbit Agent</span>
           </a>
           <a
-            href="/services"
+            href="/skills"
             className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-6 hover:bg-emerald-500/10 hover:text-emerald-500 transition-colors"
           >
             <SignalIcon className="w-4 h-4" />
-            <span>Google Services</span>
+            <span>Apps & Skills</span>
           </a>
           {isAdmin && (
             <button
