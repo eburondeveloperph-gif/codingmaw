@@ -42,7 +42,8 @@ import {
   ExclamationTriangleIcon,
   MicrophoneIcon,
   StopIcon,
-  GlobeAltIcon
+  GlobeAltIcon,
+  BellIcon
 } from '@heroicons/react/24/outline';
 import BrowseSandbox from './components/BrowseSandbox';
 import CodePreview from './components/CodePreview';
@@ -1021,6 +1022,12 @@ const App: React.FC = () => {
             </button>
             <button onClick={startRecording} disabled={isGenerating || !sttSupported} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all disabled:opacity-30" aria-label="Voice">
               <MicrophoneIcon className={`w-5 h-5 ${isRecording ? 'text-red-500 animate-pulse' : 'text-zinc-500'}`} />
+            </button>
+            <button onClick={() => {}} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all" aria-label="Notifications">
+              <BellIcon className="w-5 h-5 text-zinc-500" />
+            </button>
+            <button onClick={() => setShowAdmin(true)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all" aria-label="Settings">
+              <Cog6ToothIcon className="w-5 h-5 text-zinc-500" />
             </button>
           </div>
 
