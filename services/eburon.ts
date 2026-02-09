@@ -483,13 +483,13 @@ export async function chatStream(
   let response: Response;
 
   if (isVPS) {
-    // ── VPS deployment: LOCAL first, CLOUD fallback ──────────
-    const localUrl = 'http://168.231.78.113:11434';
+    // ── VPS deployment: use HTTPS proxy to avoid mixed content ──
+    // /api/ollama/* proxied to localhost:11434 by app-server.js
     const localModel = mapToFallbackModel(modelName);
 
     try {
       console.log(`[VPS] Trying LOCAL model=${localModel}`);
-      response = await fetch(`${localUrl}/api/chat`, {
+      response = await fetch('/api/ollama/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: buildBody(localModel),
@@ -498,10 +498,10 @@ export async function chatStream(
       if (!response.ok) throw new Error(`local ${response.status}`);
       console.log(`[VPS] LOCAL responded with ${localModel}`);
     } catch (localErr) {
-      // Local failed → try cloud model via same Ollama (has OLLAMA_API_KEY)
+      // Local failed → try cloud model via same proxy (Ollama has OLLAMA_API_KEY)
       console.warn(`[VPS] LOCAL failed (${localErr}), falling back to CLOUD ${modelName}`);
       try {
-        response = await fetch(`${localUrl}/api/chat`, {
+        response = await fetch('/api/ollama/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: buildBody(modelName),

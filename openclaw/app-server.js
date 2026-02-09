@@ -53,12 +53,93 @@ function serveFile(res, filePath) {
   return true;
 }
 
-function handleRequest(req, res) {
-  let urlPath = decodeURIComponent(new URL(req.url, 'https://localhost').pathname);
-  if (urlPath === '/') urlPath = '/index.html';
+// ── API Proxy (avoids mixed-content HTTPS→HTTP) ──────────
+const OLLAMA_URL = 'http://127.0.0.1:11434';
+const OPENCLAW_URL = 'http://127.0.0.1:18789';
+const BROWSE_URL = 'http://127.0.0.1:18790';
 
-  // Try exact file
-  const filePath = path.join(STATIC_DIR, urlPath);
+function proxyRequest(req, res, targetUrl) {
+  let body = [];
+  req.on('data', chunk => body.push(chunk));
+  req.on('end', async () => {
+    try {
+      const fetchOpts = {
+        method: req.method,
+        headers: { 'Content-Type': 'application/json' },
+      };
+      if (req.headers['x-openclaw-skill']) fetchOpts.headers['x-openclaw-skill'] = req.headers['x-openclaw-skill'];
+      if (req.headers['x-openclaw-agent-id']) fetchOpts.headers['x-openclaw-agent-id'] = req.headers['x-openclaw-agent-id'];
+      if (req.headers['authorization']) fetchOpts.headers['Authorization'] = req.headers['authorization'];
+      if (body.length > 0) fetchOpts.body = Buffer.concat(body);
+
+      const upstream = await fetch(targetUrl, fetchOpts);
+      const contentType = upstream.headers.get('content-type') || '';
+
+      // Stream responses (Ollama chat, SSE)
+      if (contentType.includes('application/x-ndjson') || contentType.includes('text/event-stream') || contentType.includes('application/json')) {
+        res.writeHead(upstream.status, {
+          'Content-Type': contentType,
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+        });
+        const reader = upstream.body.getReader();
+        const pump = async () => {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) { res.end(); return; }
+            res.write(Buffer.from(value));
+          }
+        };
+        pump().catch(() => res.end());
+      } else {
+        const data = await upstream.arrayBuffer();
+        res.writeHead(upstream.status, {
+          'Content-Type': contentType,
+          'Access-Control-Allow-Origin': '*',
+        });
+        res.end(Buffer.from(data));
+      }
+    } catch (err) {
+      res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ error: `Proxy error: ${err.message}` }));
+    }
+  });
+}
+
+function handleRequest(req, res) {
+  // CORS preflight
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-openclaw-agent-id, x-openclaw-skill',
+    });
+    res.end();
+    return;
+  }
+
+  const urlPath = decodeURIComponent(new URL(req.url, 'https://localhost').pathname);
+
+  // ── API Proxies ──────────
+  if (urlPath.startsWith('/api/ollama/')) {
+    const ollamaPath = urlPath.replace('/api/ollama', '/api');
+    proxyRequest(req, res, `${OLLAMA_URL}${ollamaPath}`);
+    return;
+  }
+  if (urlPath.startsWith('/api/agent/')) {
+    const agentPath = urlPath.replace('/api/agent', '');
+    proxyRequest(req, res, `${OPENCLAW_URL}${agentPath}`);
+    return;
+  }
+  if (urlPath.startsWith('/api/browse/')) {
+    const browsePath = urlPath.replace('/api/browse', '');
+    proxyRequest(req, res, `${BROWSE_URL}${browsePath}`);
+    return;
+  }
+
+  // ── Static files ──────────
+  let staticPath = urlPath === '/' ? '/index.html' : urlPath;
+  const filePath = path.join(STATIC_DIR, staticPath);
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
     serveFile(res, filePath);
     return;
