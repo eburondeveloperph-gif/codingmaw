@@ -268,7 +268,7 @@ const SkillsPage: React.FC = () => {
   const skills = SKILLS.filter(s => s.category === 'skills');
 
   return (
-    <div className="min-h-[100dvh] bg-white dark:bg-[#0e0e11] text-zinc-900 dark:text-white">
+    <div className="h-[100dvh] overflow-y-auto bg-white dark:bg-[#0e0e11] text-zinc-900 dark:text-white">
       {/* Header */}
       <header className="border-b border-zinc-200 dark:border-zinc-800/50 bg-white/80 dark:bg-[#0e0e11]/80 backdrop-blur-xl sticky top-0 z-30">
         <div className="max-w-4xl mx-auto flex items-center justify-between px-4 md:px-6 h-14">

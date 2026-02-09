@@ -153,7 +153,7 @@ const AgentPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-[100dvh] bg-white dark:bg-[#0e0e11] text-zinc-900 dark:text-white flex flex-col">
+    <div className="h-[100dvh] overflow-y-auto bg-white dark:bg-[#0e0e11] text-zinc-900 dark:text-white flex flex-col">
       {/* Header */}
       <header className="shrink-0 border-b border-zinc-200 dark:border-zinc-800/50 bg-white/80 dark:bg-[#0e0e11]/80 backdrop-blur-xl z-30">
         <div className="max-w-4xl mx-auto flex items-center justify-between px-4 md:px-6 h-14">
