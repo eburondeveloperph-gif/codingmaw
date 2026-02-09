@@ -1,0 +1,35 @@
+{
+    "version": "0.2",
+    "language": "en",
+    "words": [
+        "EBURON",
+        "Eburon",
+        "eburon",
+        "codemax",
+        "Codemax",
+        "CODERMAX",
+        "codimax",
+        "Conv",
+        "conv",
+        "convs",
+        "creas",
+        "Voxtral",
+        "narr",
+        "ollama",
+        "panyero",
+        "genai",
+        "eburonmaw",
+        "openclaw",
+        "codellama",
+        "RTDB",
+        "Firestore",
+        "emilapexsolution",
+        "kimi"
+    ],
+    "ignorePaths": [
+        "node_modules",
+        "dist",
+        "build",
+        ".git"
+    ]
+}

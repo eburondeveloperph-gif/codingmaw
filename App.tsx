@@ -43,8 +43,8 @@ import {
   ExclamationTriangleIcon,
   MicrophoneIcon,
   StopIcon,
-  GlobeAltIcon,
-  BellIcon
+  BellIcon,
+  HomeIcon
 } from '@heroicons/react/24/outline';
 import BrowseSandbox from './components/BrowseSandbox';
 import CodePreview from './components/CodePreview';
@@ -88,7 +88,7 @@ const App: React.FC = () => {
   });
   const [pendingImage, setPendingImage] = useState<{ data: string; mimeType: string } | null>(null);
   const [creationHistory, setCreationHistory] = useState<Creation[]>([]);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [deepThink, setDeepThink] = useState(false);
   const [appMode, setAppMode] = useState<'code' | 'chat'>('code');
@@ -152,7 +152,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
-    try { localStorage.setItem('codemax-theme', theme); } catch {}
+    try { localStorage.setItem('codemax-theme', theme); } catch { }
   }, [theme]);
 
   useEffect(() => {
@@ -346,7 +346,7 @@ const App: React.FC = () => {
       if (params.has('prompt') || params.has('stt')) {
         window.history.replaceState({}, '', '/');
       }
-    } catch {}
+    } catch { }
   }, []);
 
   const startRecording = async () => {
@@ -603,10 +603,10 @@ const App: React.FC = () => {
 
             const delta =
               typeof ev.delta === 'string' ? ev.delta :
-              typeof ev.content === 'string' ? ev.content :
-              typeof ev.text === 'string' ? ev.text :
-              typeof ev.message === 'string' ? ev.message :
-              '';
+                typeof ev.content === 'string' ? ev.content :
+                  typeof ev.text === 'string' ? ev.text :
+                    typeof ev.message === 'string' ? ev.message :
+                      '';
             return typeof delta === 'string' ? delta : '';
           };
 
@@ -812,7 +812,7 @@ const App: React.FC = () => {
 
       // Learn from this generation (agent memory)
       if (appMode === 'code' && aiText) {
-        try { learnFromGeneration(promptText, aiText); } catch {}
+        try { learnFromGeneration(promptText, aiText); } catch { }
       }
 
       // Persist AI response
@@ -928,7 +928,7 @@ const App: React.FC = () => {
       }
 
       if (aiText) {
-        try { learnFromGeneration(originalPrompt + ' (x10)', aiText); } catch {}
+        try { learnFromGeneration(originalPrompt + ' (x10)', aiText); } catch { }
       }
 
       const html = extractHtml(aiText);
@@ -938,7 +938,7 @@ const App: React.FC = () => {
           if (saved.id) {
             setCreationHistory(prev => [{ id: saved.id, name: `x10: ${originalPrompt.slice(0, 25)}...`, html, timestamp: new Date() }, ...prev]);
           }
-        } catch {}
+        } catch { }
       }
     } catch (err) {
       if (!(err instanceof DOMException && err.name === 'AbortError')) {
@@ -957,7 +957,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-[100dvh] bg-white dark:bg-[#0e0e11] text-zinc-900 dark:text-[#d1d1d1] font-sans transition-colors duration-300">
+    <div className="flex h-dvh bg-white dark:bg-[#0e0e11] text-zinc-900 dark:text-[#d1d1d1] font-sans transition-colors duration-300">
 
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />}
@@ -1095,33 +1095,19 @@ const App: React.FC = () => {
 
         <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 space-y-1">
           <a
-            href="/agent/codemax"
+            href="/"
             className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-6 hover:bg-blue-500/10 hover:text-blue-500 transition-colors"
           >
-            <CodeBracketSquareIcon className="w-4 h-4" />
-            <span>CodeMax Agent</span>
-          </a>
-          <a
-            href="/agent/orbit"
-            className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-6 hover:bg-violet-500/10 hover:text-violet-500 transition-colors"
-          >
-            <CpuChipIcon className="w-4 h-4" />
-            <span>Orbit Agent</span>
+            <HomeIcon className="w-4 h-4" />
+            <span>App</span>
           </a>
           <a
             href="/skills"
             className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-6 hover:bg-emerald-500/10 hover:text-emerald-500 transition-colors"
           >
             <SignalIcon className="w-4 h-4" />
-            <span>Apps & Skills</span>
+            <span>Skills</span>
           </a>
-          <button
-            onClick={() => { setBrowseSandboxOpen(true); setSidebarOpen(false); }}
-            className="w-full flex items-center space-x-3 px-3 py-2 text-sm rounded-6 hover:bg-cyan-500/10 hover:text-cyan-500 transition-colors"
-          >
-            <GlobeAltIcon className="w-4 h-4" />
-            <span>Web Browser</span>
-          </button>
           {isAdmin && (
             <button
               onClick={() => setShowAdmin(true)}
@@ -1182,12 +1168,11 @@ const App: React.FC = () => {
                       <span className="font-bold">{m.label}</span>
                       <span className="text-[9px] text-zinc-500">{m.description}</span>
                     </div>
-                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest shrink-0 ${
-                      m.badge === 'pro' ? 'bg-purple-500/20 text-purple-400' :
+                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest shrink-0 ${m.badge === 'pro' ? 'bg-purple-500/20 text-purple-400' :
                       m.badge === 'beta' ? 'bg-amber-500/20 text-amber-400' :
-                      m.badge === 'new' ? 'bg-emerald-500/20 text-emerald-400' :
-                      'bg-blue-500/20 text-blue-400'
-                    }`}>{m.badge}</span>
+                        m.badge === 'new' ? 'bg-emerald-500/20 text-emerald-400' :
+                          'bg-blue-500/20 text-blue-400'
+                      }`}>{m.badge}</span>
                   </button>
                 ))}
                 {ollamaModels.length > 0 && (
@@ -1206,13 +1191,7 @@ const App: React.FC = () => {
             <div className="flex-1 text-center">
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{appMode === 'code' ? 'Code' : 'Chat'}</span>
             </div>
-            <button onClick={() => fileInputRef.current?.click()} disabled={isGenerating} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all disabled:opacity-30" aria-label="Attach file">
-              <PhotoIcon className="w-5 h-5" />
-            </button>
-            <button onClick={startRecording} disabled={isGenerating || !sttSupported} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all disabled:opacity-30" aria-label="Voice">
-              <MicrophoneIcon className={`w-5 h-5 ${isRecording ? 'text-red-500 animate-pulse' : 'text-zinc-500'}`} />
-            </button>
-            <button onClick={() => {}} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all" aria-label="Notifications">
+            <button onClick={() => { }} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all" aria-label="Notifications">
               <BellIcon className="w-5 h-5 text-zinc-500" />
             </button>
             <button onClick={() => setShowAdmin(true)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all" aria-label="Settings">
@@ -1225,12 +1204,11 @@ const App: React.FC = () => {
             <div className="relative group">
               <button className="flex items-center space-x-2 px-3 py-1.5 rounded-6 bg-zinc-50 dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 text-xs font-bold tracking-tight hover:border-zinc-400 dark:hover:border-zinc-600 transition-all">
                 <span>{activeEburonModel.label}</span>
-                <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
-                  activeEburonModel.badge === 'pro' ? 'bg-purple-500/20 text-purple-400' :
+                <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${activeEburonModel.badge === 'pro' ? 'bg-purple-500/20 text-purple-400' :
                   activeEburonModel.badge === 'beta' ? 'bg-amber-500/20 text-amber-400' :
-                  activeEburonModel.badge === 'new' ? 'bg-emerald-500/20 text-emerald-400' :
-                  'bg-blue-500/20 text-blue-400'
-                }`}>{activeEburonModel.badge}</span>
+                    activeEburonModel.badge === 'new' ? 'bg-emerald-500/20 text-emerald-400' :
+                      'bg-blue-500/20 text-blue-400'
+                  }`}>{activeEburonModel.badge}</span>
                 <ChevronDownIcon className="w-3 h-3" />
               </button>
               <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 rounded-6 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-1">
@@ -1241,12 +1219,11 @@ const App: React.FC = () => {
                       <span className="font-bold">{m.label}</span>
                       <span className="text-[9px] text-zinc-500">{m.description}</span>
                     </div>
-                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest shrink-0 ${
-                      m.badge === 'pro' ? 'bg-purple-500/20 text-purple-400' :
+                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest shrink-0 ${m.badge === 'pro' ? 'bg-purple-500/20 text-purple-400' :
                       m.badge === 'beta' ? 'bg-amber-500/20 text-amber-400' :
-                      m.badge === 'new' ? 'bg-emerald-500/20 text-emerald-400' :
-                      'bg-blue-500/20 text-blue-400'
-                    }`}>{m.badge}</span>
+                        m.badge === 'new' ? 'bg-emerald-500/20 text-emerald-400' :
+                          'bg-blue-500/20 text-blue-400'
+                      }`}>{m.badge}</span>
                   </button>
                 ))}
                 {ollamaModels.length > 0 && (
@@ -1304,11 +1281,11 @@ const App: React.FC = () => {
                     {msg.parts.map((part, pi) => {
                       if (!part.text) return null;
 
-                      {/* During streaming: show raw monospace text, no HTML rendering */}
+                      {/* During streaming: show raw monospace text, no HTML rendering */ }
                       if (isStreaming) {
                         return (
                           <div key={pi} className="relative">
-                            <pre className="font-mono text-xs md:text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap break-words">
+                            <pre className="font-mono text-xs md:text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap wrap-break-word">
                               {part.text}
                             </pre>
                             <span className="inline-block w-1.5 h-4 bg-blue-500 ml-0.5 animate-pulse rounded-sm align-text-bottom" />
@@ -1316,7 +1293,7 @@ const App: React.FC = () => {
                         );
                       }
 
-                      {/* Completed message: split into explanation + code box */}
+                      {/* Completed message: split into explanation + code box */ }
                       const { explanation, code } = splitResponse(part.text);
                       return (
                         <div key={pi} className="space-y-4">
@@ -1325,17 +1302,17 @@ const App: React.FC = () => {
                               dangerouslySetInnerHTML={{ __html: typeof marked !== 'undefined' ? marked.parse(explanation) : explanation }} />
                           )}
 
-              {code && (
-                <div className="mt-4">
-                  <button
-                    onClick={() => { setPreviewCode(code); setShowPreview(true); }}
-                    className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98] flex items-center justify-center space-x-2"
-                  >
-                    <EyeIcon className="w-5 h-5" />
-                    <span>Open Full Preview (Manus Mode)</span>
-                  </button>
-                </div>
-              )}
+                          {code && (
+                            <div className="mt-4">
+                              <button
+                                onClick={() => { setPreviewCode(code); setShowPreview(true); }}
+                                className="w-full py-3 bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98] flex items-center justify-center space-x-2"
+                              >
+                                <EyeIcon className="w-5 h-5" />
+                                <span>Open Full Preview (Manus Mode)</span>
+                              </button>
+                            </div>
+                          )}
 
                           {/* Copy button for non-code responses */}
                           {!code && msg.role === 'model' && (
@@ -1406,11 +1383,10 @@ const App: React.FC = () => {
                   <button
                     onClick={() => { if (!isGenerating) setAppMode(appMode === 'code' ? 'chat' : 'code'); }}
                     disabled={isGenerating}
-                    className={`flex items-center space-x-1 md:space-x-2 px-2 md:px-3 py-1.5 rounded-full border text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${
-                      appMode === 'code'
-                        ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20'
-                        : 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20'
-                    }`}
+                    className={`flex items-center space-x-1 md:space-x-2 px-2 md:px-3 py-1.5 rounded-full border text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${appMode === 'code'
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20'
+                      : 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20'
+                      }`}
                   >
                     {appMode === 'code' ? <CodeBracketSquareIcon className="w-3.5 h-3.5" /> : <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />}
                     <span className="hidden sm:inline">{appMode === 'code' ? 'Code' : 'Chat'}</span>
@@ -1441,11 +1417,10 @@ const App: React.FC = () => {
                       if (!codemaxDevOpen && !codemaxDevEnabled) setCodemaxDevOpen(true);
                     }}
                     disabled={isGenerating}
-                    className={`flex items-center space-x-1 md:space-x-2 px-2 md:px-3 py-1.5 rounded-full border text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${
-                      codemaxDevEnabled
-                        ? 'bg-violet-600 border-violet-600 text-white shadow-lg shadow-violet-600/20'
-                        : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400'
-                    }`}
+                    className={`flex items-center space-x-1 md:space-x-2 px-2 md:px-3 py-1.5 rounded-full border text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${codemaxDevEnabled
+                      ? 'bg-violet-600 border-violet-600 text-white shadow-lg shadow-violet-600/20'
+                      : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400'
+                      }`}
                     title="CodeMax Dev Autopilot"
                     aria-label="Toggle CodeMax Dev Autopilot"
                   >
@@ -1546,7 +1521,7 @@ const App: React.FC = () => {
 
       {/* Admin Settings Modal */}
       {showAdmin && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="w-full max-w-lg bg-white dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 rounded-6 p-6 shadow-[0_32px_128px_rgba(0,0,0,0.5)] max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between mb-4 shrink-0">
               <div>

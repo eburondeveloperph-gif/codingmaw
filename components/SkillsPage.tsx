@@ -9,7 +9,6 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   CommandLineIcon,
-  CodeBracketIcon,
   BugAntIcon,
   GlobeAltIcon,
   LanguageIcon,
@@ -17,7 +16,6 @@ import {
   ChartBarIcon,
   PhotoIcon,
   MicrophoneIcon,
-  SparklesIcon,
   DocumentTextIcon,
   LightBulbIcon,
   CpuChipIcon,
@@ -43,28 +41,6 @@ interface Skill {
 
 const SKILLS: Skill[] = [
   // ─── Apps ───
-  {
-    id: 'codemax',
-    name: 'CodeMax Agent',
-    description: 'Autonomous coding agent — write, debug, refactor, and deploy code end-to-end.',
-    icon: <CodeBracketIcon className="w-6 h-6" />,
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-500/10',
-    category: 'apps',
-    route: '/agent/codemax',
-    ready: true,
-  },
-  {
-    id: 'orbit',
-    name: 'Orbit Assistant',
-    description: 'General-purpose AI assistant for research, writing, analysis, and everyday tasks.',
-    icon: <SparklesIcon className="w-6 h-6" />,
-    color: 'text-purple-500',
-    bgColor: 'bg-purple-500/10',
-    category: 'apps',
-    route: '/agent/orbit',
-    ready: true,
-  },
   {
     id: 'preview',
     name: 'Live Preview',
@@ -240,7 +216,7 @@ const SkillsPage: React.FC = () => {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
-    try { localStorage.setItem('codemax-theme', theme); } catch {}
+    try { localStorage.setItem('codemax-theme', theme); } catch { }
   }, [theme]);
 
   useEffect(() => {
@@ -268,7 +244,7 @@ const SkillsPage: React.FC = () => {
   const skills = SKILLS.filter(s => s.category === 'skills');
 
   return (
-    <div className="h-[100dvh] overflow-y-auto bg-white dark:bg-[#0e0e11] text-zinc-900 dark:text-white">
+    <div className="h-dvh overflow-y-auto bg-white dark:bg-[#0e0e11] text-zinc-900 dark:text-white">
       {/* Header */}
       <header className="border-b border-zinc-200 dark:border-zinc-800/50 bg-white/80 dark:bg-[#0e0e11]/80 backdrop-blur-xl sticky top-0 z-30">
         <div className="max-w-4xl mx-auto flex items-center justify-between px-4 md:px-6 h-14">
@@ -293,7 +269,7 @@ const SkillsPage: React.FC = () => {
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-8">
         {/* Hero */}
         <div className="text-center mb-10">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 via-blue-500 to-cyan-500 flex items-center justify-center mx-auto mb-5 shadow-2xl">
+          <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-purple-500 via-blue-500 to-cyan-500 flex items-center justify-center mx-auto mb-5 shadow-2xl">
             <CpuChipIcon className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-2">Apps & Skills</h1>
@@ -303,9 +279,8 @@ const SkillsPage: React.FC = () => {
         </div>
 
         {/* Agent Status */}
-        <div className={`mb-8 p-4 rounded-2xl border flex items-center justify-between ${
-          agentOnline ? 'bg-emerald-500/5 border-emerald-500/20' : agentOnline === false ? 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800' : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800'
-        }`}>
+        <div className={`mb-8 p-4 rounded-2xl border flex items-center justify-between ${agentOnline ? 'bg-emerald-500/5 border-emerald-500/20' : agentOnline === false ? 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800' : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800'
+          }`}>
           <div className="flex items-center space-x-3">
             {agentOnline === null ? (
               <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />

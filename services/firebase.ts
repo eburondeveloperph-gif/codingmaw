@@ -5,20 +5,21 @@ import {
   signInWithPopup,
   signOut,
 } from 'firebase/auth';
+import { getDatabase } from 'firebase/database';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBVdVHpKodbd89EhmCutJewrGNZxyF5zAs",
-  authDomain: "social-3315a.firebaseapp.com",
-  databaseURL: "https://social-3315a-default-rtdb.firebaseio.com",
-  projectId: "social-3315a",
-  storageBucket: "social-3315a.firebasestorage.app",
-  messagingSenderId: "450321746541",
-  appId: "1:450321746541:web:c466a74a203afb7a570d64",
-  measurementId: "G-HZ76VE3734",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+export const db = getDatabase(app);
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('email');
