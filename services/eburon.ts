@@ -460,19 +460,10 @@ export async function chatStream(
   mode: 'code' | 'chat' = 'code',
   signal?: AbortSignal
 ) {
-  // In production (Vercel), use server-side proxy to avoid CORS
-  // In dev (localhost), call Ollama Cloud directly via Vite proxy or direct URL
-  const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
-  const useProxy = isProduction;
-
-  const apiKey = import.meta.env.VITE_OLLAMA_API_KEY?.trim();
-  if (!useProxy && !apiKey) {
-    console.error("VITE_OLLAMA_API_KEY is missing");
-    throw new Error("VITE_OLLAMA_API_KEY is not set. Please check .env.local");
-  }
-
-  const cloudUrl = useProxy ? '' : (import.meta.env.VITE_OLLAMA_CLOUD_URL?.trim() || 'https://api.ollama.com');
-  const fetchUrl = useProxy ? '/api/ollama/chat' : `${cloudUrl}/api/chat`;
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isVercel = hostname !== '' && !hostname.includes('localhost') && !hostname.includes('127.0.0.1') && !hostname.includes('168.231.78.113');
+  const isVPS = hostname.includes('168.231.78.113');
+  // isLocal = localhost/127.0.0.1
 
   const messages = history.map(msg => ({
     role: msg.role === 'model' ? 'assistant' : 'user',
@@ -483,55 +474,85 @@ export async function chatStream(
   const systemPrompt = (mode === 'chat' ? CHAT_SYSTEM_INSTRUCTION : SYSTEM_INSTRUCTION)
     + (memoryCtx ? '\n\n' + memoryCtx : '');
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (!useProxy && apiKey) {
-    headers['Authorization'] = `Bearer ${apiKey}`;
-  }
-
-  const requestBody = JSON.stringify({
-    model: modelName,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      ...messages
-    ],
+  const buildBody = (model: string) => JSON.stringify({
+    model,
+    messages: [{ role: 'system', content: systemPrompt }, ...messages],
     stream: true
   });
 
   let response: Response;
 
-  try {
-    response = await fetch(fetchUrl, { method: 'POST', headers, body: requestBody, signal });
-    if (!response.ok) throw new Error(`${response.status}`);
-  } catch (primaryErr) {
-    // Fallback: in production the proxy handles it; in dev try the self-hosted server
-    const fallbackUrl = import.meta.env.VITE_OLLAMA_FALLBACK_URL?.trim();
-    if (!useProxy && fallbackUrl) {
-      const fallbackModel = mapToFallbackModel(modelName);
-      console.warn(`Primary Ollama failed, trying fallback: ${fallbackUrl} with model ${fallbackModel}`);
-      const fallbackBody = JSON.stringify({
-        model: fallbackModel,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages
-        ],
-        stream: true
+  if (isVPS) {
+    // ── VPS deployment: LOCAL first, CLOUD fallback ──────────
+    const localUrl = 'http://168.231.78.113:11434';
+    const localModel = mapToFallbackModel(modelName);
+
+    try {
+      console.log(`[VPS] Trying LOCAL model=${localModel}`);
+      response = await fetch(`${localUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: buildBody(localModel),
+        signal
       });
+      if (!response.ok) throw new Error(`local ${response.status}`);
+      console.log(`[VPS] LOCAL responded with ${localModel}`);
+    } catch (localErr) {
+      // Local failed → try cloud model via same Ollama (has OLLAMA_API_KEY)
+      console.warn(`[VPS] LOCAL failed (${localErr}), falling back to CLOUD ${modelName}`);
       try {
-        response = await fetch(`${fallbackUrl}/api/chat`, {
+        response = await fetch(`${localUrl}/api/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: fallbackBody,
+          body: buildBody(modelName),
           signal
         });
-        if (!response!.ok) {
-          const errText = await response!.text();
-          throw new Error(`Fallback error (${response!.status}): ${errText}`);
-        }
-      } catch (fallbackErr) {
-        throw new Error(`All Ollama endpoints failed. Primary: ${primaryErr}. Fallback: ${fallbackErr}`);
+        if (!response!.ok) throw new Error(`cloud ${response!.status}`);
+        console.log(`[VPS] CLOUD fallback responded with ${modelName}`);
+      } catch (cloudErr) {
+        throw new Error(`All endpoints failed. Local: ${localErr}. Cloud: ${cloudErr}`);
       }
-    } else {
-      throw primaryErr;
+    }
+  } else if (isVercel) {
+    // ── Vercel: use server-side proxy ──────────
+    response = await fetch('/api/ollama/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: buildBody(modelName),
+      signal
+    });
+    if (!response.ok) throw new Error(`Proxy error ${response.status}`);
+  } else {
+    // ── Dev (localhost): cloud first, VPS fallback ──────────
+    const apiKey = import.meta.env.VITE_OLLAMA_API_KEY?.trim();
+    const cloudUrl = import.meta.env.VITE_OLLAMA_CLOUD_URL?.trim() || 'https://api.ollama.com';
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+    try {
+      response = await fetch(`${cloudUrl}/api/chat`, {
+        method: 'POST', headers, body: buildBody(modelName), signal
+      });
+      if (!response.ok) throw new Error(`${response.status}`);
+    } catch (primaryErr) {
+      const fallbackUrl = import.meta.env.VITE_OLLAMA_FALLBACK_URL?.trim();
+      if (fallbackUrl) {
+        const fallbackModel = mapToFallbackModel(modelName);
+        console.warn(`Cloud failed, trying fallback: ${fallbackUrl} with ${fallbackModel}`);
+        try {
+          response = await fetch(`${fallbackUrl}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: buildBody(fallbackModel),
+            signal
+          });
+          if (!response!.ok) throw new Error(`Fallback ${response!.status}`);
+        } catch (fallbackErr) {
+          throw new Error(`All endpoints failed. Primary: ${primaryErr}. Fallback: ${fallbackErr}`);
+        }
+      } else {
+        throw primaryErr;
+      }
     }
   }
 
