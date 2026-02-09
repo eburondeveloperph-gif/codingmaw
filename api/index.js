@@ -44,6 +44,53 @@ function authMiddleware(req, res, next) {
   }
 }
 
+// ── Ollama Cloud Proxy (avoids CORS in production) ──────────
+
+app.post('/api/ollama/chat', async (req, res) => {
+  const cloudUrl = process.env.OLLAMA_CLOUD_URL || 'https://api.ollama.com';
+  const apiKey = process.env.OLLAMA_API_KEY || '';
+
+  if (!apiKey) {
+    return res.status(500).json({ error: 'OLLAMA_API_KEY not configured on server' });
+  }
+
+  try {
+    const upstream = await fetch(`${cloudUrl}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(req.body),
+    });
+
+    if (!upstream.ok) {
+      const errText = await upstream.text();
+      return res.status(upstream.status).send(errText);
+    }
+
+    // Stream the response back to the client
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    const reader = upstream.body.getReader();
+    const push = async () => {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) { res.end(); return; }
+        res.write(Buffer.from(value));
+      }
+    };
+    await push();
+  } catch (err) {
+    console.error('Ollama proxy error:', err);
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'Failed to reach Ollama Cloud' });
+    }
+  }
+});
+
 // ── Health check (public) ──────────────────────────────────
 
 app.get('/api/health', async (req, res) => {

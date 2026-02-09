@@ -432,14 +432,19 @@ export async function chatStream(
   mode: 'code' | 'chat' = 'code',
   signal?: AbortSignal
 ) {
+  // In production (Vercel), use server-side proxy to avoid CORS
+  // In dev (localhost), call Ollama Cloud directly via Vite proxy or direct URL
+  const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1');
+  const useProxy = isProduction;
+
   const apiKey = import.meta.env.VITE_OLLAMA_API_KEY?.trim();
-  if (!apiKey) {
+  if (!useProxy && !apiKey) {
     console.error("VITE_OLLAMA_API_KEY is missing");
     throw new Error("VITE_OLLAMA_API_KEY is not set. Please check .env.local");
   }
-  const cloudUrl = import.meta.env.VITE_OLLAMA_CLOUD_URL?.trim() || 'https://api.ollama.com';
-  console.log("Using Orbit Cloud endpoint:", cloudUrl);
-  console.log("Using Orbit Cloud Key:", apiKey.substring(0, 5) + "...");
+
+  const cloudUrl = useProxy ? '' : (import.meta.env.VITE_OLLAMA_CLOUD_URL?.trim() || 'https://api.ollama.com');
+  const fetchUrl = useProxy ? '/api/ollama/chat' : `${cloudUrl}/api/chat`;
 
   const messages = history.map(msg => ({
     role: msg.role === 'model' ? 'assistant' : 'user',
@@ -450,12 +455,14 @@ export async function chatStream(
   const systemPrompt = (mode === 'chat' ? CHAT_SYSTEM_INSTRUCTION : SYSTEM_INSTRUCTION)
     + (memoryCtx ? '\n\n' + memoryCtx : '');
 
-  const response = await fetch(`${cloudUrl}/api/chat`, {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (!useProxy && apiKey) {
+    headers['Authorization'] = `Bearer ${apiKey}`;
+  }
+
+  const response = await fetch(fetchUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
+    headers,
     body: JSON.stringify({
       model: modelName,
       messages: [
