@@ -57,6 +57,7 @@ function serveFile(res, filePath) {
 const OLLAMA_URL = 'http://127.0.0.1:11434';
 const OPENCLAW_URL = 'http://127.0.0.1:18789';
 const BROWSE_URL = 'http://127.0.0.1:18790';
+const BACKEND_URL = 'http://127.0.0.1:4000';
 
 function proxyRequest(req, res, targetUrl) {
   let body = [];
@@ -134,6 +135,12 @@ function handleRequest(req, res) {
   if (urlPath.startsWith('/api/browse/')) {
     const browsePath = urlPath.replace('/api/browse', '');
     proxyRequest(req, res, `${BROWSE_URL}${browsePath}`);
+    return;
+  }
+  // Backend DB API: /api/db/* → backend:4000/api/*
+  if (urlPath.startsWith('/api/db/')) {
+    const dbPath = urlPath.replace('/api/db', '/api');
+    proxyRequest(req, res, `${BACKEND_URL}${dbPath}`);
     return;
   }
 

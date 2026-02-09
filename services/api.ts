@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+const isVPS = hostname.includes('168.231.78.113') || hostname.includes('codemaxx.eburon.ai');
+const API_BASE = isVPS ? '/api/db' : (import.meta.env.VITE_API_URL || '/api');
 
 // ── Token management ───────────────────────────────────────
 
