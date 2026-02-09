@@ -94,8 +94,10 @@ const App: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [asrAvailable, setAsrAvailable] = useState(false);
+  const [sttMode, setSttMode] = useState<'browser' | 'voxtral'>('browser');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const speechRecRef = useRef<any>(null);
 
   // Persistence States
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -251,44 +253,103 @@ const App: React.FC = () => {
     detectOllamaModels(localUrl);
   }, [user?.ollama_local_url]);
 
-  // Check Eburon ASR availability on mount
+  // Check Eburon ASR availability on mount; fallback to browser SpeechRecognition
   useEffect(() => {
-    checkAsrHealth().then(setAsrAvailable);
+    checkAsrHealth().then((ok) => {
+      setAsrAvailable(ok);
+      if (ok) setSttMode('voxtral');
+    });
   }, []);
 
   const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4' });
-      audioChunksRef.current = [];
-      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      mediaRecorder.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
-        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
-        if (audioBlob.size < 100) return;
-        setIsTranscribing(true);
-        try {
-          const text = await transcribeAudio(audioBlob);
-          if (text) setInput(prev => prev ? `${prev} ${text}` : text);
-        } catch (err) {
-          console.error('Eburon ASR error:', err);
-        } finally {
-          setIsTranscribing(false);
-        }
-      };
-      mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start(250);
-      setIsRecording(true);
-    } catch (err) {
-      console.error('Microphone access denied:', err);
+    // If Voxtral ASR is available, use it (higher quality)
+    if (sttMode === 'voxtral' && asrAvailable) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4' });
+        audioChunksRef.current = [];
+        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+        mediaRecorder.onstop = async () => {
+          stream.getTracks().forEach(t => t.stop());
+          const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+          if (audioBlob.size < 100) return;
+          setIsTranscribing(true);
+          try {
+            const text = await transcribeAudio(audioBlob);
+            if (text) setInput(prev => prev ? `${prev} ${text}` : text);
+          } catch (err) {
+            console.error('Eburon ASR error:', err);
+          } finally {
+            setIsTranscribing(false);
+          }
+        };
+        mediaRecorderRef.current = mediaRecorder;
+        mediaRecorder.start(250);
+        setIsRecording(true);
+      } catch (err) {
+        console.error('Microphone access denied:', err);
+      }
+      return;
     }
+
+    // Browser SpeechRecognition API (default — works without backend)
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.error('SpeechRecognition not supported in this browser');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    // Capture current input as the base before recording
+    const baseInput = input ? input + ' ' : '';
+    let finalTranscript = '';
+
+    recognition.onresult = (event: any) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + ' ';
+        } else {
+          interim = transcript;
+        }
+      }
+      const sttText = (finalTranscript + interim).trim();
+      if (sttText) setInput(baseInput + sttText);
+    };
+
+    recognition.onerror = (event: any) => {
+      if (event.error !== 'no-speech') console.error('SpeechRecognition error:', event.error);
+      setIsRecording(false);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      speechRecRef.current = null;
+    };
+
+    speechRecRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
   };
 
   const stopRecording = () => {
+    // Stop Voxtral MediaRecorder
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
     mediaRecorderRef.current = null;
+
+    // Stop browser SpeechRecognition
+    if (speechRecRef.current) {
+      speechRecRef.current.stop();
+      speechRecRef.current = null;
+    }
+
     setIsRecording(false);
   };
 

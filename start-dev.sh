@@ -99,7 +99,21 @@ if [ "$DOCKER_AVAILABLE" = true ]; then
   docker compose up openclaw -d 2>/dev/null || docker compose up --build openclaw -d 2>/dev/null || true
   echo -e "${GREEN}✅ OpenClaw starting on :18789${NC}"
 else
-  echo -e "${YELLOW}⚠️  Skipping Docker services (Ollama, ASR, OpenClaw) — Docker not available${NC}"
+  echo -e "${YELLOW}⚠️  Skipping Docker services (Ollama, OpenClaw) — Docker not available${NC}"
+
+  # Try starting ASR locally with Python if MISTRAL_API_KEY is set
+  if [ -n "${MISTRAL_API_KEY:-}" ] && command -v python3 >/dev/null 2>&1; then
+    if python3 -c "import fastapi, mistralai" 2>/dev/null; then
+      echo -e "${YELLOW}🎤 Starting Eburon ASR locally (Python)...${NC}"
+      MISTRAL_API_KEY="$MISTRAL_API_KEY" PORT=5100 python3 asr/server.py > asr.log 2>&1 &
+      PIDS+=($!)
+      echo -e "${GREEN}✅ Eburon ASR starting on :5100 (local Python)${NC}"
+    else
+      echo -e "${YELLOW}⚠️  ASR dependencies missing. Run: pip3 install fastapi uvicorn numpy mistralai${NC}"
+    fi
+  else
+    echo -e "${YELLOW}ℹ️  STT uses browser SpeechRecognition (set MISTRAL_API_KEY for Voxtral ASR)${NC}"
+  fi
 fi
 
 # ─── Dependencies ───────────────────────────────────────────────────────
