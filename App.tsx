@@ -45,8 +45,9 @@ import {
   GlobeAltIcon
 } from '@heroicons/react/24/outline';
 import BrowseSandbox from './components/BrowseSandbox';
-import { hasBrowseIntent, parseNewCommands, type BrowseCommand } from './services/browseCommands';
+import { parseNewCommands, type BrowseCommand } from './services/browseCommands';
 import { agentSkillStream } from './services/agent';
+import { detectIntent, routeSkill } from './services/orchestrator';
 
 declare const marked: any;
 declare const hljs: any;
@@ -482,10 +483,31 @@ const App: React.FC = () => {
 
     try {
       let aiText = "";
-      const effectiveModel = appMode === 'chat' ? CHAT_MODEL : activeModel;
-      const isBrowse = hasBrowseIntent(promptText);
+      // ── Orchestrator: detect intent and route to correct skill ──
+      const intent = detectIntent(promptText);
+      const route = routeSkill(intent);
+      const effectiveMode = route.appMode;
+      const effectiveModel = effectiveMode === 'chat' ? CHAT_MODEL : activeModel;
 
-      if (isBrowse) {
+      const scrollToBottom = () => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          });
+        });
+      };
+
+      const onStreamChunk = (chunk: string) => {
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1].parts[0].text = chunk;
+          return updated;
+        });
+        aiText = chunk;
+        scrollToBottom();
+      };
+
+      if (route.agentSkill === 'web_browse') {
         // ── Agent-driven browsing (Manus-style) ──────────
         setBrowseCommands([]);
         setBrowseNarration('');
@@ -498,66 +520,35 @@ const App: React.FC = () => {
           [{ role: 'user', content: promptText }],
           'web_browse',
           (chunk) => {
-            setMessages(prev => {
-              const updated = [...prev];
-              updated[updated.length - 1].parts[0].text = chunk;
-              return updated;
-            });
-            aiText = chunk;
-
-            // Parse new browse commands from streaming text
+            onStreamChunk(chunk);
             const newCmds = parseNewCommands(chunk, browseExecCountRef.current);
-            if (newCmds.length > 0) {
-              setBrowseCommands(parseNewCommands(chunk, 0));
-            }
-
-            // Extract narration (text before/between code blocks)
+            if (newCmds.length > 0) setBrowseCommands(parseNewCommands(chunk, 0));
             const narration = chunk.replace(/```browse[\s\S]*?```/g, '').trim();
             const lastLine = narration.split('\n').filter(l => l.trim()).pop() || '';
             if (lastLine) setBrowseNarration(lastLine);
-
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-              });
-            });
           },
           controller.signal
         );
+      } else if (route.useAgent && route.agentSkill) {
+        // ── Agent skill (CodeMax, Orbit, etc.) ──────────
+        setMessages(prev => [...prev, { role: 'model', parts: [{ text: '' }], modelName: route.agentSkill }]);
+
+        await agentSkillStream(
+          [{ role: 'user', content: promptText }],
+          route.agentSkill!,
+          onStreamChunk,
+          controller.signal
+        );
       } else {
-        // ── Normal code/chat generation ──────────
+        // ── Direct model generation (code, chat, translate, etc.) ──────────
         setMessages(prev => [...prev, { role: 'model', parts: [{ text: "" }], modelName: effectiveModel }]);
 
         const isOllama = ollamaModels.includes(effectiveModel);
 
         if (isOllama) {
-          await chatOllamaStream(ollamaUrl, effectiveModel, [...messages, userMessage], (chunk) => {
-            setMessages(prev => {
-              const updated = [...prev];
-              updated[updated.length - 1].parts[0].text = chunk;
-              return updated;
-            });
-            aiText = chunk;
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-              });
-            });
-          }, appMode, controller.signal);
+          await chatOllamaStream(ollamaUrl, effectiveModel, [...messages, userMessage], onStreamChunk, effectiveMode, controller.signal);
         } else {
-          await chatStream(effectiveModel, [...messages, userMessage], (chunk) => {
-            setMessages(prev => {
-              const updated = [...prev];
-              updated[updated.length - 1].parts[0].text = chunk;
-              return updated;
-            });
-            aiText = chunk;
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-              });
-            });
-          }, appMode, controller.signal);
+          await chatStream(effectiveModel, [...messages, userMessage], onStreamChunk, effectiveMode, controller.signal);
         }
       }
 
@@ -601,8 +592,16 @@ const App: React.FC = () => {
   };
 
   const extractHtml = (text: string) => {
-    const match = text.match(/<!DOCTYPE html>[\s\S]*?<\/html>|<html[\s\S]*?<\/html>/i);
-    return match ? match[0] : null;
+    // Try raw HTML first
+    const rawMatch = text.match(/<!DOCTYPE html>[\s\S]*?<\/html>|<html[\s\S]*?<\/html>/i);
+    if (rawMatch) return rawMatch[0];
+    // Try markdown code fences: ```html ... ```
+    const fenceMatch = text.match(/```html\s*\n([\s\S]*?)\n```/);
+    if (fenceMatch) {
+      const inner = fenceMatch[1].trim();
+      if (inner.includes('<html') || inner.includes('<!DOCTYPE') || inner.includes('<body')) return inner;
+    }
+    return null;
   };
 
   const splitResponse = (text: string): { explanation: string; code: string | null } => {
@@ -895,7 +894,7 @@ const App: React.FC = () => {
       </aside>
 
       {/* Main Container */}
-      <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0e0e11] relative pb-16 md:pb-0">
+      <main className="flex-1 flex flex-col min-w-0 bg-white dark:bg-[#0e0e11] relative">
         {!sidebarOpen && (
           <button
             onClick={() => setSidebarOpen(true)}
@@ -1076,8 +1075,8 @@ const App: React.FC = () => {
           <div ref={bottomRef} />
         </div>
 
-        {/* Floating Input Pill Area */}
-        <div className="px-3 md:px-6 pb-20 md:pb-8 shrink-0">
+        {/* Floating Input Pill Area — pinned to bottom on mobile */}
+        <div className="px-3 md:px-6 pb-[72px] md:pb-4 shrink-0 sticky bottom-0 z-20 bg-white dark:bg-[#0e0e11]">
           <div className="max-w-3xl mx-auto">
             <div className={`relative bg-zinc-50 dark:bg-[#1c1c1f] border rounded-[24px] p-4 shadow-2xl transition-all ${isGenerating ? 'border-blue-500/30 ring-1 ring-blue-500/20' : 'border-zinc-200 dark:border-zinc-800 focus-within:ring-1 focus-within:ring-zinc-400 dark:focus-within:ring-zinc-600 focus-within:bg-white dark:focus-within:bg-[#202024]'}`}>
               {/* Loading indicator overlay inside textarea area */}
