@@ -131,6 +131,73 @@ export async function agentStream(
   return fullText;
 }
 
+export async function agentSkillStream(
+  messages: AgentMessage[],
+  skill: string,
+  onChunk: (text: string) => void,
+  signal?: AbortSignal,
+  config?: Partial<AgentConfig>
+): Promise<string> {
+  const cfg = { ...getDefaultConfig(), ...config };
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-openclaw-agent-id': skill,
+    'x-openclaw-skill': skill,
+  };
+  if (cfg.token) {
+    headers['Authorization'] = `Bearer ${cfg.token}`;
+  }
+
+  const response = await fetch(`${cfg.gatewayUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      stream: true,
+      messages,
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Orbit Agent error (${response.status}): ${errorText}`);
+  }
+
+  if (!response.body) throw new Error('No response body from agent');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullText = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    const lines = chunk.split('\n');
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const data = line.slice(6).trim();
+      if (data === '[DONE]') continue;
+
+      try {
+        const json = JSON.parse(data);
+        const delta = json.choices?.[0]?.delta?.content;
+        if (delta) {
+          fullText += delta;
+          onChunk(fullText);
+        }
+      } catch {
+        // partial JSON, skip
+      }
+    }
+  }
+
+  return fullText;
+}
+
 export async function agentToolInvoke(
   tool: string,
   args: Record<string, any> = {},

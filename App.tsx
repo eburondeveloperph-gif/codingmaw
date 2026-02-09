@@ -45,6 +45,8 @@ import {
   GlobeAltIcon
 } from '@heroicons/react/24/outline';
 import BrowseSandbox from './components/BrowseSandbox';
+import { hasBrowseIntent, parseNewCommands, type BrowseCommand } from './services/browseCommands';
+import { agentSkillStream } from './services/agent';
 
 declare const marked: any;
 declare const hljs: any;
@@ -82,6 +84,9 @@ const App: React.FC = () => {
   const [deepThink, setDeepThink] = useState(false);
   const [appMode, setAppMode] = useState<'code' | 'chat'>('code');
   const [browseSandboxOpen, setBrowseSandboxOpen] = useState(false);
+  const [browseCommands, setBrowseCommands] = useState<BrowseCommand[]>([]);
+  const [browseNarration, setBrowseNarration] = useState('');
+  const browseExecCountRef = useRef(0);
 
   // Admin / Ollama States
   const [showAdmin, setShowAdmin] = useState(false);
@@ -478,38 +483,82 @@ const App: React.FC = () => {
     try {
       let aiText = "";
       const effectiveModel = appMode === 'chat' ? CHAT_MODEL : activeModel;
-      setMessages(prev => [...prev, { role: 'model', parts: [{ text: "" }], modelName: effectiveModel }]);
+      const isBrowse = hasBrowseIntent(promptText);
 
-      const isOllama = ollamaModels.includes(effectiveModel);
+      if (isBrowse) {
+        // ── Agent-driven browsing (Manus-style) ──────────
+        setBrowseCommands([]);
+        setBrowseNarration('');
+        browseExecCountRef.current = 0;
+        setBrowseSandboxOpen(true);
 
-      if (isOllama) {
-        await chatOllamaStream(ollamaUrl, effectiveModel, [...messages, userMessage], (chunk) => {
-          setMessages(prev => {
-            const updated = [...prev];
-            updated[updated.length - 1].parts[0].text = chunk;
-            return updated;
-          });
-          aiText = chunk;
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        setMessages(prev => [...prev, { role: 'model', parts: [{ text: '' }], modelName: 'web_browse' }]);
+
+        await agentSkillStream(
+          [{ role: 'user', content: promptText }],
+          'web_browse',
+          (chunk) => {
+            setMessages(prev => {
+              const updated = [...prev];
+              updated[updated.length - 1].parts[0].text = chunk;
+              return updated;
             });
-          });
-        }, appMode, controller.signal);
+            aiText = chunk;
+
+            // Parse new browse commands from streaming text
+            const newCmds = parseNewCommands(chunk, browseExecCountRef.current);
+            if (newCmds.length > 0) {
+              setBrowseCommands(parseNewCommands(chunk, 0));
+            }
+
+            // Extract narration (text before/between code blocks)
+            const narration = chunk.replace(/```browse[\s\S]*?```/g, '').trim();
+            const lastLine = narration.split('\n').filter(l => l.trim()).pop() || '';
+            if (lastLine) setBrowseNarration(lastLine);
+
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+              });
+            });
+          },
+          controller.signal
+        );
       } else {
-        await chatStream(effectiveModel, [...messages, userMessage], (chunk) => {
-          setMessages(prev => {
-            const updated = [...prev];
-            updated[updated.length - 1].parts[0].text = chunk;
-            return updated;
-          });
-          aiText = chunk;
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        // ── Normal code/chat generation ──────────
+        setMessages(prev => [...prev, { role: 'model', parts: [{ text: "" }], modelName: effectiveModel }]);
+
+        const isOllama = ollamaModels.includes(effectiveModel);
+
+        if (isOllama) {
+          await chatOllamaStream(ollamaUrl, effectiveModel, [...messages, userMessage], (chunk) => {
+            setMessages(prev => {
+              const updated = [...prev];
+              updated[updated.length - 1].parts[0].text = chunk;
+              return updated;
             });
-          });
-        }, appMode, controller.signal);
+            aiText = chunk;
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+              });
+            });
+          }, appMode, controller.signal);
+        } else {
+          await chatStream(effectiveModel, [...messages, userMessage], (chunk) => {
+            setMessages(prev => {
+              const updated = [...prev];
+              updated[updated.length - 1].parts[0].text = chunk;
+              return updated;
+            });
+            aiText = chunk;
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+              });
+            });
+          }, appMode, controller.signal);
+        }
       }
 
       // Learn from this generation (agent memory)
@@ -1402,7 +1451,13 @@ const App: React.FC = () => {
         />
       )}
 
-      <BrowseSandbox isOpen={browseSandboxOpen} onClose={() => setBrowseSandboxOpen(false)} />
+      <BrowseSandbox
+        isOpen={browseSandboxOpen}
+        onClose={() => { setBrowseSandboxOpen(false); setBrowseCommands([]); setBrowseNarration(''); }}
+        pendingCommands={browseCommands}
+        agentNarration={browseNarration}
+        onCommandsExecuted={(count) => { browseExecCountRef.current = count; }}
+      />
     </div>
   );
 };

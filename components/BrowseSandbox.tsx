@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   GlobeAltIcon,
   ArrowLeftIcon,
@@ -10,21 +10,14 @@ import {
   XMarkIcon,
   PaperAirplaneIcon,
 } from '@heroicons/react/24/outline';
-
-interface BrowseResult {
-  ok?: boolean;
-  url?: string;
-  title?: string;
-  screenshot?: string;
-  text?: string;
-  links?: { text: string; href: string }[];
-  inputs?: { tag: string; type: string; name: string; id: string; placeholder: string; selector: string }[];
-  error?: string;
-}
+import { type BrowseCommand, type BrowseResult, executeBrowseCommand } from '../services/browseCommands';
 
 interface BrowseSandboxProps {
   onClose: () => void;
   isOpen: boolean;
+  pendingCommands?: BrowseCommand[];
+  agentNarration?: string;
+  onCommandsExecuted?: (count: number) => void;
 }
 
 const BROWSE_BASE = typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')
@@ -35,12 +28,12 @@ async function browseAction(action: string, params: Record<string, any> = {}): P
   const res = await fetch(`${BROWSE_BASE}/${action}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session: 'sandbox', ...params }),
+    body: JSON.stringify({ session: 'agent', ...params }),
   });
   return res.json();
 }
 
-const BrowseSandbox: React.FC<BrowseSandboxProps> = ({ onClose, isOpen }) => {
+const BrowseSandbox: React.FC<BrowseSandboxProps> = ({ onClose, isOpen, pendingCommands = [], agentNarration, onCommandsExecuted }) => {
   const [urlInput, setUrlInput] = useState('');
   const [currentUrl, setCurrentUrl] = useState('');
   const [currentTitle, setCurrentTitle] = useState('');
@@ -52,9 +45,62 @@ const BrowseSandbox: React.FC<BrowseSandboxProps> = ({ onClose, isOpen }) => {
   const [actionInput, setActionInput] = useState('');
   const [actionType, setActionType] = useState<'click' | 'type' | 'fill'>('click');
   const [logs, setLogs] = useState<string[]>([]);
+  const [executedCount, setExecutedCount] = useState(0);
+  const executingRef = useRef(false);
   const urlRef = useRef<HTMLInputElement>(null);
 
-  const addLog = (msg: string) => setLogs(prev => [...prev.slice(-20), `[${new Date().toLocaleTimeString()}] ${msg}`]);
+  const addLog = (msg: string) => setLogs(prev => [...prev.slice(-30), `[${new Date().toLocaleTimeString()}] ${msg}`]);
+
+  const updateFromResult = useCallback((result: BrowseResult, actionLabel: string) => {
+    if (result.ok) {
+      if (result.screenshot) setScreenshotSrc(`data:image/jpeg;base64,${result.screenshot}`);
+      if (result.url) { setCurrentUrl(result.url); setUrlInput(result.url); }
+      if (result.title) setCurrentTitle(result.title);
+      addLog(`✓ ${actionLabel}`);
+    } else {
+      setError(result.error || `${actionLabel} failed`);
+      addLog(`✗ ${actionLabel}: ${result.error}`);
+    }
+  }, []);
+
+  // ── Agent-driven command execution ──────────
+  useEffect(() => {
+    if (pendingCommands.length <= executedCount || executingRef.current) return;
+
+    const executeNext = async () => {
+      executingRef.current = true;
+      const cmdsToRun = pendingCommands.slice(executedCount);
+
+      for (const cmd of cmdsToRun) {
+        setLoading(true);
+        addLog(`▶ Agent: ${cmd.action}${cmd.url ? ` → ${cmd.url}` : ''}${cmd.selector ? ` [${cmd.selector}]` : ''}`);
+
+        const result = await executeBrowseCommand(cmd, 'agent');
+        updateFromResult(result, `${cmd.action}${cmd.url ? ` ${cmd.url}` : ''}`);
+
+        setExecutedCount(prev => {
+          const next = prev + 1;
+          onCommandsExecuted?.(next);
+          return next;
+        });
+        setLoading(false);
+
+        // Small delay between commands for visual feedback
+        await new Promise(r => setTimeout(r, 300));
+      }
+      executingRef.current = false;
+    };
+
+    executeNext();
+  }, [pendingCommands.length, executedCount, updateFromResult, onCommandsExecuted]);
+
+  // Reset executed count when sandbox is reopened
+  useEffect(() => {
+    if (isOpen) {
+      setExecutedCount(0);
+      executingRef.current = false;
+    }
+  }, [isOpen]);
 
   const handleNavigate = async (url?: string) => {
     const target = url || urlInput;
@@ -64,16 +110,7 @@ const BrowseSandbox: React.FC<BrowseSandboxProps> = ({ onClose, isOpen }) => {
     addLog(`Navigating to ${target}...`);
     try {
       const result = await browseAction('navigate', { url: target });
-      if (result.ok) {
-        setScreenshotSrc(`data:image/jpeg;base64,${result.screenshot}`);
-        setCurrentUrl(result.url || target);
-        setCurrentTitle(result.title || '');
-        setUrlInput(result.url || target);
-        addLog(`Loaded: ${result.title} (${result.url})`);
-      } else {
-        setError(result.error || 'Navigation failed');
-        addLog(`Error: ${result.error}`);
-      }
+      updateFromResult(result, `Navigate: ${target}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
       addLog(`Error: ${err}`);
@@ -94,10 +131,7 @@ const BrowseSandbox: React.FC<BrowseSandboxProps> = ({ onClose, isOpen }) => {
   const handleScroll = async (direction: 'up' | 'down') => {
     setLoading(true);
     const result = await browseAction('scroll', { direction });
-    if (result.ok && result.screenshot) {
-      setScreenshotSrc(`data:image/jpeg;base64,${result.screenshot}`);
-      addLog(`Scrolled ${direction}`);
-    }
+    updateFromResult(result, `Scroll ${direction}`);
     setLoading(false);
   };
 
@@ -105,13 +139,7 @@ const BrowseSandbox: React.FC<BrowseSandboxProps> = ({ onClose, isOpen }) => {
     setLoading(true);
     addLog('Going back...');
     const result = await browseAction('back');
-    if (result.ok) {
-      setScreenshotSrc(`data:image/jpeg;base64,${result.screenshot}`);
-      setCurrentUrl(result.url || '');
-      setCurrentTitle(result.title || '');
-      setUrlInput(result.url || '');
-      addLog(`Back to: ${result.title}`);
-    }
+    updateFromResult(result, 'Back');
     setLoading(false);
   };
 
@@ -121,7 +149,7 @@ const BrowseSandbox: React.FC<BrowseSandboxProps> = ({ onClose, isOpen }) => {
     if (result.ok) {
       setPageContent(result);
       setShowContent(true);
-      addLog(`Content extracted: ${result.links?.length || 0} links, ${result.inputs?.length || 0} inputs`);
+      addLog(`Content: ${result.links?.length || 0} links, ${result.inputs?.length || 0} inputs`);
     }
     setLoading(false);
   };
@@ -134,36 +162,18 @@ const BrowseSandbox: React.FC<BrowseSandboxProps> = ({ onClose, isOpen }) => {
     if (actionType === 'click') {
       addLog(`Clicking: ${actionInput}`);
       const result = await browseAction('click', { selector: actionInput });
-      if (result.ok) {
-        setScreenshotSrc(`data:image/jpeg;base64,${result.screenshot}`);
-        setCurrentUrl(result.url || currentUrl);
-        setCurrentTitle(result.title || currentTitle);
-        addLog(`Clicked ${actionInput}`);
-      } else {
-        setError(result.error || 'Click failed');
-      }
+      updateFromResult(result, `Click: ${actionInput}`);
     } else if (actionType === 'type') {
       const [selector, ...textParts] = actionInput.split('|');
       const text = textParts.join('|');
       if (!selector || !text) { setError('Format: selector|text'); setLoading(false); return; }
       addLog(`Typing into ${selector.trim()}`);
       const result = await browseAction('type', { selector: selector.trim(), text: text.trim() });
-      if (result.ok) {
-        setScreenshotSrc(`data:image/jpeg;base64,${result.screenshot}`);
-        addLog(`Typed into ${selector.trim()}`);
-      } else {
-        setError(result.error || 'Type failed');
-      }
+      updateFromResult(result, `Type: ${selector.trim()}`);
     } else if (actionType === 'fill') {
       addLog(`Submitting form: ${actionInput || 'Enter key'}`);
       const result = await browseAction('submit', { selector: actionInput || undefined });
-      if (result.ok) {
-        setScreenshotSrc(`data:image/jpeg;base64,${result.screenshot}`);
-        setCurrentUrl(result.url || currentUrl);
-        addLog(`Form submitted`);
-      } else {
-        setError(result.error || 'Submit failed');
-      }
+      updateFromResult(result, 'Submit');
     }
     setLoading(false);
   };
@@ -357,11 +367,18 @@ const BrowseSandbox: React.FC<BrowseSandboxProps> = ({ onClose, isOpen }) => {
             </form>
           </div>
 
+          {/* Agent narration */}
+          {agentNarration && (
+            <div className="mt-1.5 px-2 py-1.5 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+              <p className="text-[11px] text-purple-400 font-medium leading-snug line-clamp-2">{agentNarration}</p>
+            </div>
+          )}
+
           {/* Error / Log */}
           {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
           {logs.length > 0 && (
-            <div className="mt-1.5 max-h-16 overflow-y-auto">
-              {logs.slice(-3).map((log, i) => (
+            <div className="mt-1.5 max-h-20 overflow-y-auto scrollbar-hide">
+              {logs.slice(-5).map((log, i) => (
                 <p key={i} className="text-[10px] text-zinc-400 font-mono">{log}</p>
               ))}
             </div>
