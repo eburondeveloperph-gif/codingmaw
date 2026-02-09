@@ -461,8 +461,8 @@ export async function chatStream(
   signal?: AbortSignal
 ) {
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-  const isVercel = hostname !== '' && !hostname.includes('localhost') && !hostname.includes('127.0.0.1') && !hostname.includes('168.231.78.113');
-  const isVPS = hostname.includes('168.231.78.113');
+  const isVPS = hostname.includes('168.231.78.113') || hostname.includes('codemaxx.eburon.ai');
+  const isVercel = hostname !== '' && !hostname.includes('localhost') && !hostname.includes('127.0.0.1') && !isVPS;
   // isLocal = localhost/127.0.0.1
 
   const messages = history.map(msg => ({
