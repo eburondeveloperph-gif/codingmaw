@@ -17,6 +17,7 @@ import { useAuth } from './contexts/AuthContext';
 import UserProfile from './components/UserProfile';
 import {
   PaperAirplaneIcon,
+  BoltIcon,
   CommandLineIcon,
   XMarkIcon,
   CodeBracketSquareIcon,
@@ -47,9 +48,12 @@ import {
 } from '@heroicons/react/24/outline';
 import BrowseSandbox from './components/BrowseSandbox';
 import CodePreview from './components/CodePreview';
+import AuthModal from './components/AuthModal';
+import SimulationPanel, { type PendingApproval } from './components/SimulationPanel';
 import { parseNewCommands, type BrowseCommand } from './services/browseCommands';
 import { agentSkillStream } from './services/agent';
 import { detectIntent, routeSkill } from './services/orchestrator';
+import { approveCodeMaxDevTool, streamCodeMaxDevRun, type CodeMaxDevSseMessage } from './services/codemaxDev';
 
 declare const marked: any;
 declare const hljs: any;
@@ -64,8 +68,10 @@ function toCoderMaxAlias(modelName: string): string {
 }
 
 const App: React.FC = () => {
-  const { user, logout, updateUser } = useAuth();
+  const { user, isAuthenticated, login, register, logout, updateUser } = useAuth();
   const isAdmin = user?.email === 'master@eburon.ai';
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState(() => {
     try {
@@ -91,6 +97,15 @@ const App: React.FC = () => {
   const [browseNarration, setBrowseNarration] = useState('');
   const browseExecCountRef = useRef(0);
   const [activeSkillLabel, setActiveSkillLabel] = useState<string | null>(null);
+
+  // CodeMax Dev Autopilot (white-labeled server-side CLI)
+  const [codemaxDevEnabled, setCodemaxDevEnabled] = useState(false);
+  const [codemaxDevOpen, setCodemaxDevOpen] = useState(false);
+  const [codemaxDevRunId, setCodemaxDevRunId] = useState<string | null>(null);
+  const [codemaxDevStatus, setCodemaxDevStatus] = useState<string | null>(null);
+  const [codemaxDevEvents, setCodemaxDevEvents] = useState<CodeMaxDevSseMessage[]>([]);
+  const [codemaxDevApprovals, setCodemaxDevApprovals] = useState<PendingApproval[]>([]);
+
   const [previewCode, setPreviewCode] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
@@ -181,6 +196,39 @@ const App: React.FC = () => {
     };
     init();
   }, []);
+
+  // Redirect to auth if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated && !user) {
+      setShowAuthModal(true);
+    }
+  }, [isAuthenticated, user]);
+
+  const handleLogin = async (email: string, password: string) => {
+    try {
+      setAuthError(null);
+      await login(email, password);
+      setShowAuthModal(false);
+      // Refresh data after login
+      refreshConversations();
+      api.listCreations().then(creas => setCreationHistory(creas.map(c => ({ id: c.id, name: c.name, html: '', timestamp: new Date(c.created_at) }))));
+    } catch (err: any) {
+      setAuthError(err.message || 'Login failed');
+    }
+  };
+
+  const handleRegister = async (email: string, password: string, displayName: string) => {
+    try {
+      setAuthError(null);
+      await register(email, password, displayName);
+      setShowAuthModal(false);
+      // Refresh data after register
+      refreshConversations();
+      api.listCreations().then(creas => setCreationHistory(creas.map(c => ({ id: c.id, name: c.name, html: '', timestamp: new Date(c.created_at) }))));
+    } catch (err: any) {
+      setAuthError(err.message || 'Registration failed');
+    }
+  };
 
   const refreshConversations = async () => {
     try {
@@ -438,11 +486,32 @@ const App: React.FC = () => {
     }
   };
 
+  const decideCodeMaxDevApproval = async (toolUseId: string, decision: 'approve' | 'deny') => {
+    if (!codemaxDevRunId) return;
+
+    setCodemaxDevApprovals(prev =>
+      prev.map(a => a.toolUseId === toolUseId ? { ...a, decided: decision } : a)
+    );
+
+    try {
+      await approveCodeMaxDevTool({ runId: codemaxDevRunId, toolUseId, decision });
+    } catch (err) {
+      setCodemaxDevEvents(prev => ([
+        ...prev.slice(-200),
+        { kind: 'error', runId: codemaxDevRunId, ts: new Date().toISOString(), error: err instanceof Error ? err.message : String(err) } as any,
+      ]));
+    }
+  };
+
   const handleStop = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    if (codemaxDevRunId && codemaxDevStatus === 'running') {
+      setCodemaxDevStatus('stopped');
+    }
+    setActiveSkillLabel(null);
     setIsGenerating(false);
   };
 
@@ -488,136 +557,256 @@ const App: React.FC = () => {
 
     try {
       let aiText = "";
-      // ── Orchestrator: detect intent and route to correct skill ──
-      const intent = detectIntent(promptText);
-      const route = routeSkill(intent);
-      const effectiveMode = route.appMode;
-      const effectiveModel = effectiveMode === 'chat' ? CHAT_MODEL : activeModel;
+      if (codemaxDevEnabled) {
+        // ── CodeMax Dev Autopilot (white-labeled) ───────────────────
+        setCodemaxDevOpen(true);
+        setCodemaxDevEvents([]);
+        setCodemaxDevApprovals([]);
+        setCodemaxDevRunId(null);
+        setCodemaxDevStatus('running');
+        setActiveSkillLabel('CodeMax Dev');
 
-      const scrollToBottom = () => {
-        requestAnimationFrame(() => {
+        const scrollToBottom = () => {
           requestAnimationFrame(() => {
-            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            requestAnimationFrame(() => {
+              if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            });
           });
-        });
-      };
+        };
 
-      const onStreamChunk = (chunk: string) => {
-        setMessages(prev => {
-          const updated = [...prev];
-          updated[updated.length - 1].parts[0].text = chunk;
-          return updated;
-        });
-        aiText = chunk;
-        scrollToBottom();
-      };
+        const setChatText = (chunk: string) => {
+          setMessages(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1].parts[0].text = chunk;
+            return updated;
+          });
+          aiText = chunk;
+          scrollToBottom();
+        };
 
-      if (route.agentSkill === 'web_browse') {
-        // ── Autonomous multi-step browsing (x10 Manus-style) ──────────
-        setBrowseCommands([]);
-        setBrowseNarration('Initializing...');
-        browseExecCountRef.current = 0;
-        setBrowseSandboxOpen(true);
-        setActiveSkillLabel('Browsing');
+        // Create the assistant message slot
+        setMessages(prev => [...prev, { role: 'model', parts: [{ text: '' }], modelName: 'codemax-dev' }]);
 
-        setMessages(prev => [...prev, { role: 'model', parts: [{ text: '' }], modelName: 'web_browse' }]);
+        if (!isAuthenticated) {
+          setShowAuthModal(true);
+          setCodemaxDevStatus('error');
+          setActiveSkillLabel(null);
+          setChatText('Sign in required for CodeMax Dev Autopilot.');
+        } else {
+          let assistantText = '';
 
-        const MAX_STEPS = 10;
-        const agentMessages: { role: string; content: string }[] = [
-          { role: 'user', content: promptText }
-        ];
-        let fullNarration = '';
+          const extractDelta = (ev: any): string => {
+            if (!ev || typeof ev !== 'object') return '';
+            const type = String(ev.type || ev.kind || '').toLowerCase();
+            if (type.includes('tool')) return '';
+            if (type.includes('stderr')) return '';
 
-        for (let step = 0; step < MAX_STEPS; step++) {
-          let stepText = '';
+            const delta =
+              typeof ev.delta === 'string' ? ev.delta :
+              typeof ev.content === 'string' ? ev.content :
+              typeof ev.text === 'string' ? ev.text :
+              typeof ev.message === 'string' ? ev.message :
+              '';
+            return typeof delta === 'string' ? delta : '';
+          };
 
-          await agentSkillStream(
-            agentMessages as any,
-            'web_browse',
-            (chunk) => {
-              stepText = chunk;
-              // Update the chat message with cumulative narration
-              const displayText = fullNarration + (fullNarration ? '\n\n' : '') + chunk;
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1].parts[0].text = displayText;
-                return updated;
-              });
-              aiText = displayText;
+          const mergeText = (current: string, delta: string, ev: any): string => {
+            const type = String(ev?.type || '').toLowerCase();
+            let next = current;
+            if (type.includes('final') || type.includes('result') || type.includes('complete')) {
+              next = delta;
+            } else {
+              next = current + delta;
+            }
+            if (next.length > 40000) next = next.slice(-40000);
+            return next;
+          };
 
-              // Parse & execute new browse commands
-              const allCmds = parseNewCommands(chunk, 0);
-              const prevCount = browseExecCountRef.current;
-              if (allCmds.length > prevCount) {
-                // Merge with existing commands
-                setBrowseCommands(prev => {
-                  const newOnes = allCmds.slice(prev.length);
-                  return [...prev, ...newOnes];
+          await streamCodeMaxDevRun(
+            { task: promptText, autonomy: 'auto_edit', maxSteps: 20 },
+            (msg) => {
+              setCodemaxDevEvents(prev => [...prev.slice(-200), msg]);
+
+              if (msg.kind === 'status') {
+                setCodemaxDevRunId(msg.runId);
+                setCodemaxDevStatus(msg.status);
+                if (msg.status === 'done' || msg.status === 'stopped') setActiveSkillLabel(null);
+              }
+
+              if (msg.kind === 'approval') {
+                setCodemaxDevRunId(msg.runId);
+                setCodemaxDevOpen(true);
+                setCodemaxDevApprovals(prev => {
+                  if (prev.some(a => a.toolUseId === msg.toolUseId)) return prev;
+                  return [
+                    ...prev,
+                    {
+                      runId: msg.runId,
+                      toolUseId: msg.toolUseId,
+                      toolName: msg.toolName,
+                      ts: msg.ts,
+                      args: msg.args,
+                      prompt: msg.prompt,
+                    },
+                  ];
                 });
               }
 
-              // Narration
-              const narr = chunk.replace(/```browse[\s\S]*?```/g, '').trim();
-              const lastLine = narr.split('\n').filter((l: string) => l.trim()).pop() || '';
-              if (lastLine) setBrowseNarration(`Step ${step + 1}: ${lastLine}`);
+              if (msg.kind === 'error') {
+                setCodemaxDevRunId(msg.runId);
+                setCodemaxDevStatus('error');
+                setActiveSkillLabel(null);
+              }
 
-              scrollToBottom();
+              if (msg.kind === 'event') {
+                const delta = extractDelta(msg.event);
+                if (delta) {
+                  assistantText = mergeText(assistantText, delta, msg.event);
+                  setChatText(assistantText);
+                }
+              }
             },
             controller.signal
           );
 
-          fullNarration += (fullNarration ? '\n\n' : '') + stepText;
-          agentMessages.push({ role: 'assistant', content: stepText });
-
-          // Check if agent emitted browse commands in this step
-          const stepCmds = parseNewCommands(stepText, 0);
-          if (stepCmds.length === 0) {
-            // No commands = agent is done, finished thinking/reporting
-            setBrowseNarration('Task complete');
-            break;
+          if (assistantText) {
+            aiText = assistantText;
+            setChatText(assistantText);
           }
-
-          // Wait for all commands from this step to execute
-          const expectedTotal = browseExecCountRef.current + stepCmds.length;
-          let waitAttempts = 0;
-          while (browseExecCountRef.current < expectedTotal && waitAttempts < 60) {
-            await new Promise(r => setTimeout(r, 500));
-            waitAttempts++;
-          }
-
-          // Feed back result to agent for next step
-          const lastCmd = stepCmds[stepCmds.length - 1];
-          const feedbackParts = [`Browser executed: ${lastCmd.action}`];
-          if (lastCmd.url) feedbackParts.push(`URL: ${lastCmd.url}`);
-          feedbackParts.push('What should I do next? Continue with the task or report findings. If done, summarize the results without any browse commands.');
-
-          agentMessages.push({
-            role: 'user',
-            content: `[BROWSER RESULT]\n${feedbackParts.join('\n')}\n\nContinue the task. If you need more actions, output browse commands. If done, provide a summary.`
-          });
+          setActiveSkillLabel(null);
         }
-
-        setActiveSkillLabel(null);
-      } else if (route.useAgent && route.agentSkill) {
-        // ── Agent skill (CodeMax, Orbit, etc.) ──────────
-        setMessages(prev => [...prev, { role: 'model', parts: [{ text: '' }], modelName: route.agentSkill }]);
-
-        await agentSkillStream(
-          [{ role: 'user', content: promptText }],
-          route.agentSkill!,
-          onStreamChunk,
-          controller.signal
-        );
       } else {
-        // ── Direct model generation (code, chat, translate, etc.) ──────────
-        setMessages(prev => [...prev, { role: 'model', parts: [{ text: "" }], modelName: effectiveModel }]);
+        // ── Orchestrator: detect intent and route to correct skill ──
+        const intent = detectIntent(promptText);
+        const route = routeSkill(intent);
+        const effectiveMode = route.appMode;
+        const effectiveModel = effectiveMode === 'chat' ? CHAT_MODEL : activeModel;
 
-        const isOllama = ollamaModels.includes(effectiveModel);
+        const scrollToBottom = () => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            });
+          });
+        };
 
-        if (isOllama) {
-          await chatOllamaStream(ollamaUrl, effectiveModel, [...messages, userMessage], onStreamChunk, effectiveMode, controller.signal);
+        const onStreamChunk = (chunk: string) => {
+          setMessages(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1].parts[0].text = chunk;
+            return updated;
+          });
+          aiText = chunk;
+          scrollToBottom();
+        };
+
+        if (route.agentSkill === 'web_browse') {
+          // ── Autonomous multi-step browsing (x10 Manus-style) ──────────
+          setBrowseCommands([]);
+          setBrowseNarration('Initializing...');
+          browseExecCountRef.current = 0;
+          setBrowseSandboxOpen(true);
+          setActiveSkillLabel('Browsing');
+
+          setMessages(prev => [...prev, { role: 'model', parts: [{ text: '' }], modelName: 'web_browse' }]);
+
+          const MAX_STEPS = 10;
+          const agentMessages: { role: string; content: string }[] = [
+            { role: 'user', content: promptText }
+          ];
+          let fullNarration = '';
+
+          for (let step = 0; step < MAX_STEPS; step++) {
+            let stepText = '';
+
+            await agentSkillStream(
+              agentMessages as any,
+              'web_browse',
+              (chunk) => {
+                stepText = chunk;
+                // Update the chat message with cumulative narration
+                const displayText = fullNarration + (fullNarration ? '\n\n' : '') + chunk;
+                setMessages(prev => {
+                  const updated = [...prev];
+                  updated[updated.length - 1].parts[0].text = displayText;
+                  return updated;
+                });
+                aiText = displayText;
+
+                // Parse & execute new browse commands
+                const allCmds = parseNewCommands(chunk, 0);
+                const prevCount = browseExecCountRef.current;
+                if (allCmds.length > prevCount) {
+                  // Merge with existing commands
+                  setBrowseCommands(prev => {
+                    const newOnes = allCmds.slice(prev.length);
+                    return [...prev, ...newOnes];
+                  });
+                }
+
+                // Narration
+                const narr = chunk.replace(/```browse[\s\S]*?```/g, '').trim();
+                const lastLine = narr.split('\n').filter((l: string) => l.trim()).pop() || '';
+                if (lastLine) setBrowseNarration(`Step ${step + 1}: ${lastLine}`);
+
+                scrollToBottom();
+              },
+              controller.signal
+            );
+
+            fullNarration += (fullNarration ? '\n\n' : '') + stepText;
+            agentMessages.push({ role: 'assistant', content: stepText });
+
+            // Check if agent emitted browse commands in this step
+            const stepCmds = parseNewCommands(stepText, 0);
+            if (stepCmds.length === 0) {
+              // No commands = agent is done, finished thinking/reporting
+              setBrowseNarration('Task complete');
+              break;
+            }
+
+            // Wait for all commands from this step to execute
+            const expectedTotal = browseExecCountRef.current + stepCmds.length;
+            let waitAttempts = 0;
+            while (browseExecCountRef.current < expectedTotal && waitAttempts < 60) {
+              await new Promise(r => setTimeout(r, 500));
+              waitAttempts++;
+            }
+
+            // Feed back result to agent for next step
+            const lastCmd = stepCmds[stepCmds.length - 1];
+            const feedbackParts = [`Browser executed: ${lastCmd.action}`];
+            if (lastCmd.url) feedbackParts.push(`URL: ${lastCmd.url}`);
+            feedbackParts.push('What should I do next? Continue with the task or report findings. If done, summarize the results without any browse commands.');
+
+            agentMessages.push({
+              role: 'user',
+              content: `[BROWSER RESULT]\n${feedbackParts.join('\n')}\n\nContinue the task. If you need more actions, output browse commands. If done, provide a summary.`
+            });
+          }
+
+          setActiveSkillLabel(null);
+        } else if (route.useAgent && route.agentSkill) {
+          // ── Agent skill (CodeMax, Orbit, etc.) ──────────
+          setMessages(prev => [...prev, { role: 'model', parts: [{ text: '' }], modelName: route.agentSkill }]);
+
+          await agentSkillStream(
+            [{ role: 'user', content: promptText }],
+            route.agentSkill!,
+            onStreamChunk,
+            controller.signal
+          );
         } else {
-          await chatStream(effectiveModel, [...messages, userMessage], onStreamChunk, effectiveMode, controller.signal);
+          // ── Direct model generation (code, chat, translate, etc.) ──────────
+          setMessages(prev => [...prev, { role: 'model', parts: [{ text: "" }], modelName: effectiveModel }]);
+
+          const isOllama = ollamaModels.includes(effectiveModel);
+
+          if (isOllama) {
+            await chatOllamaStream(ollamaUrl, effectiveModel, [...messages, userMessage], onStreamChunk, effectiveMode, controller.signal);
+          } else {
+            await chatStream(effectiveModel, [...messages, userMessage], onStreamChunk, effectiveMode, controller.signal);
+          }
         }
       }
 
@@ -629,7 +818,7 @@ const App: React.FC = () => {
       // Persist AI response
       if (dbConnected && convId) {
         try {
-          await api.addMessage(convId, { role: 'model', content: aiText, model_name: activeModel });
+          await api.addMessage(convId, { role: 'model', content: aiText, model_name: codemaxDevEnabled ? 'codemax-dev' : activeModel });
         } catch { /* offline fallback */ }
       }
 
@@ -1242,6 +1431,27 @@ const App: React.FC = () => {
                     <MagnifyingGlassIcon className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Search</span>
                   </button>
+                  <button
+                    onClick={() => {
+                      if (isGenerating) return;
+                      // Autopilot requires JWT auth; prompt login if enabling.
+                      if (!codemaxDevEnabled && !isAuthenticated) setShowAuthModal(true);
+                      setSearchActive(false);
+                      setCodemaxDevEnabled(!codemaxDevEnabled);
+                      if (!codemaxDevOpen && !codemaxDevEnabled) setCodemaxDevOpen(true);
+                    }}
+                    disabled={isGenerating}
+                    className={`flex items-center space-x-1 md:space-x-2 px-2 md:px-3 py-1.5 rounded-full border text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${
+                      codemaxDevEnabled
+                        ? 'bg-violet-600 border-violet-600 text-white shadow-lg shadow-violet-600/20'
+                        : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400'
+                    }`}
+                    title="CodeMax Dev Autopilot"
+                    aria-label="Toggle CodeMax Dev Autopilot"
+                  >
+                    <BoltIcon className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Autopilot</span>
+                  </button>
                   {/* File attachment button - visible on all sizes */}
                   <button onClick={() => fileInputRef.current?.click()} disabled={isGenerating} className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors disabled:opacity-30" aria-label="Attach file">
                     <PhotoIcon className="w-5 h-5" />
@@ -1304,7 +1514,7 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="text-center mt-3">
-              <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-[0.4em] opacity-40">{appMode === 'code' ? 'Architect Core can err. Production verification suggested.' : 'Eburon AI — Built by eburon.ai'}</p>
+              <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-[0.4em] opacity-40">{appMode === 'code' ? '' : 'Eburon AI — Built by eburon.ai'}</p>
             </div>
           </div>
         </div>
@@ -1564,12 +1774,29 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Full-Screen Code Preview Modal */}
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onLogin={handleLogin}
+        onRegister={handleRegister}
+        error={authError}
+      />
       <CodePreview
         code={previewCode || ''}
         isOpen={showPreview}
         onClose={() => setShowPreview(false)}
         title="Live Preview"
+      />
+
+      <SimulationPanel
+        open={codemaxDevOpen}
+        onClose={() => setCodemaxDevOpen(false)}
+        runId={codemaxDevRunId}
+        status={codemaxDevStatus}
+        events={codemaxDevEvents}
+        approvals={codemaxDevApprovals}
+        onDecision={decideCodeMaxDevApproval}
       />
 
       <BrowseSandbox

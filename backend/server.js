@@ -3,6 +3,7 @@ import cors from 'cors';
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { startCodeMaxDevRun, approveCodeMaxDevTool, stopCodeMaxDevRun, getCodeMaxDevRun } from './services/codemaxDevRunner.js';
 
 const { Pool } = pg;
 
@@ -69,6 +70,20 @@ function authMiddleware(req, res, next) {
     req.userId = id;
     next();
   }).catch(() => res.status(500).json({ error: 'Failed to resolve user' }));
+}
+
+function strictAuthMiddleware(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  try {
+    const decoded = jwt.verify(header.split(' ')[1], JWT_SECRET);
+    req.userId = decoded.userId;
+    return next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
 }
 
 // ── Health check (public) ──────────────────────────────────
@@ -369,6 +384,91 @@ app.patch('/api/messages/:id', authMiddleware, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── CodeMax Dev Autopilot (Manus-style, white-labeled) ───────────────
+
+app.post('/api/codemax-dev/stream', strictAuthMiddleware, async (req, res) => {
+  const startedAt = Date.now();
+  let runId = null;
+
+  // SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  // Disable buffering on common proxies (nginx)
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  // Best-effort flush
+  try { res.flushHeaders?.(); } catch {}
+
+  const emit = (obj) => {
+    try {
+      if (res.writableEnded) return;
+      res.write(`data: ${JSON.stringify(obj)}\n\n`);
+    } catch {}
+  };
+
+  const end = () => {
+    try { if (!res.writableEnded) res.end(); } catch {}
+  };
+
+  try {
+    const { task, autonomy, maxSteps, model } = req.body || {};
+
+    runId = startCodeMaxDevRun({
+      userId: req.userId,
+      task,
+      autonomy,
+      maxSteps,
+      model,
+      emit,
+      onEnd: end,
+    });
+  } catch (err) {
+    emit({ kind: 'error', runId: runId || 'unknown', ts: new Date().toISOString(), error: err instanceof Error ? err.message : String(err) });
+    end();
+    return;
+  }
+
+  // Kill the run if client disconnects (Stop button / tab close)
+  req.on('close', () => {
+    const live = runId ? getCodeMaxDevRun(runId) : null;
+    if (live) stopCodeMaxDevRun(runId, { reason: 'client_disconnected', startedAt });
+  });
+});
+
+app.post('/api/codemax-dev/approve', strictAuthMiddleware, async (req, res) => {
+  try {
+    const { runId, toolUseId, decision } = req.body || {};
+    if (!runId || !toolUseId || !decision) {
+      return res.status(400).json({ error: 'runId, toolUseId, and decision are required' });
+    }
+
+    const run = getCodeMaxDevRun(runId);
+    if (!run) return res.status(404).json({ error: 'Run not found' });
+    if (run.userId !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+
+    const result = approveCodeMaxDevTool({ runId, toolUseId, decision });
+    if (!result.ok) return res.status(404).json({ error: result.error || 'Not found' });
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── Deprecated Gemini Agent Routes ───────────────────────────────
+// These previously imported a TS module as .js without a build step.
+// Keep endpoints but mark as gone to avoid runtime import errors.
+app.post('/api/agent/gemini', (_req, res) => {
+  res.status(410).json({ error: 'Deprecated. Use /api/codemax-dev/stream' });
+});
+app.post('/api/agent/gemini/stream', (_req, res) => {
+  res.status(410).json({ error: 'Deprecated. Use /api/codemax-dev/stream' });
+});
+app.post('/api/agent/gemini/autonomous', (_req, res) => {
+  res.status(410).json({ error: 'Deprecated. Use /api/codemax-dev/stream' });
 });
 
 // ── Creations (protected) ──────────────────────────────────

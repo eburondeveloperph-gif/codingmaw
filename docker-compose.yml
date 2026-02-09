@@ -32,6 +32,13 @@ services:
       PORT: 4000
       JWT_SECRET: eburon-codemax-production-secret-change-me
       OLLAMA_HOST: http://ollama:11434
+      # CodeMax Dev Autopilot (server-side only)
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      CODEMAX_DEV_MODEL: ${CODEMAX_DEV_MODEL:-}
+      CODEMAX_DEV_CLI_PATH: ${CODEMAX_DEV_CLI_PATH:-}
+      CODEMAX_DEV_CLI_ARGS: ${CODEMAX_DEV_CLI_ARGS:-}
+      CODEMAX_DEV_MAX_CONCURRENT: ${CODEMAX_DEV_MAX_CONCURRENT:-2}
     ports:
       - "4000:4000"
 
