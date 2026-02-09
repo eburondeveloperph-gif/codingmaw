@@ -88,6 +88,7 @@ const App: React.FC = () => {
   const [browseCommands, setBrowseCommands] = useState<BrowseCommand[]>([]);
   const [browseNarration, setBrowseNarration] = useState('');
   const browseExecCountRef = useRef(0);
+  const [activeSkillLabel, setActiveSkillLabel] = useState<string | null>(null);
 
   // Admin / Ollama States
   const [showAdmin, setShowAdmin] = useState(false);
@@ -508,27 +509,91 @@ const App: React.FC = () => {
       };
 
       if (route.agentSkill === 'web_browse') {
-        // ── Agent-driven browsing (Manus-style) ──────────
+        // ── Autonomous multi-step browsing (x10 Manus-style) ──────────
         setBrowseCommands([]);
-        setBrowseNarration('');
+        setBrowseNarration('Initializing...');
         browseExecCountRef.current = 0;
         setBrowseSandboxOpen(true);
+        setActiveSkillLabel('Browsing');
 
         setMessages(prev => [...prev, { role: 'model', parts: [{ text: '' }], modelName: 'web_browse' }]);
 
-        await agentSkillStream(
-          [{ role: 'user', content: promptText }],
-          'web_browse',
-          (chunk) => {
-            onStreamChunk(chunk);
-            const newCmds = parseNewCommands(chunk, browseExecCountRef.current);
-            if (newCmds.length > 0) setBrowseCommands(parseNewCommands(chunk, 0));
-            const narration = chunk.replace(/```browse[\s\S]*?```/g, '').trim();
-            const lastLine = narration.split('\n').filter(l => l.trim()).pop() || '';
-            if (lastLine) setBrowseNarration(lastLine);
-          },
-          controller.signal
-        );
+        const MAX_STEPS = 10;
+        const agentMessages: { role: string; content: string }[] = [
+          { role: 'user', content: promptText }
+        ];
+        let fullNarration = '';
+
+        for (let step = 0; step < MAX_STEPS; step++) {
+          let stepText = '';
+
+          await agentSkillStream(
+            agentMessages as any,
+            'web_browse',
+            (chunk) => {
+              stepText = chunk;
+              // Update the chat message with cumulative narration
+              const displayText = fullNarration + (fullNarration ? '\n\n' : '') + chunk;
+              setMessages(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1].parts[0].text = displayText;
+                return updated;
+              });
+              aiText = displayText;
+
+              // Parse & execute new browse commands
+              const allCmds = parseNewCommands(chunk, 0);
+              const prevCount = browseExecCountRef.current;
+              if (allCmds.length > prevCount) {
+                // Merge with existing commands
+                setBrowseCommands(prev => {
+                  const newOnes = allCmds.slice(prev.length);
+                  return [...prev, ...newOnes];
+                });
+              }
+
+              // Narration
+              const narr = chunk.replace(/```browse[\s\S]*?```/g, '').trim();
+              const lastLine = narr.split('\n').filter((l: string) => l.trim()).pop() || '';
+              if (lastLine) setBrowseNarration(`Step ${step + 1}: ${lastLine}`);
+
+              scrollToBottom();
+            },
+            controller.signal
+          );
+
+          fullNarration += (fullNarration ? '\n\n' : '') + stepText;
+          agentMessages.push({ role: 'assistant', content: stepText });
+
+          // Check if agent emitted browse commands in this step
+          const stepCmds = parseNewCommands(stepText, 0);
+          if (stepCmds.length === 0) {
+            // No commands = agent is done, finished thinking/reporting
+            setBrowseNarration('Task complete');
+            break;
+          }
+
+          // Wait for all commands from this step to execute
+          const expectedTotal = browseExecCountRef.current + stepCmds.length;
+          let waitAttempts = 0;
+          while (browseExecCountRef.current < expectedTotal && waitAttempts < 60) {
+            await new Promise(r => setTimeout(r, 500));
+            waitAttempts++;
+          }
+
+          // Feed back result to agent for next step
+          const lastCmd = stepCmds[stepCmds.length - 1];
+          const feedbackParts = [`Browser executed: ${lastCmd.action}`];
+          if (lastCmd.url) feedbackParts.push(`URL: ${lastCmd.url}`);
+          feedbackParts.push('What should I do next? Continue with the task or report findings. If done, summarize the results without any browse commands.');
+
+          agentMessages.push({
+            role: 'user',
+            content: `[BROWSER RESULT]\n${feedbackParts.join('\n')}\n\nContinue the task. If you need more actions, output browse commands. If done, provide a summary.`
+          });
+        }
+
+        setActiveSkillLabel(null);
       } else if (route.useAgent && route.agentSkill) {
         // ── Agent skill (CodeMax, Orbit, etc.) ──────────
         setMessages(prev => [...prev, { role: 'model', parts: [{ text: '' }], modelName: route.agentSkill }]);
@@ -1111,11 +1176,13 @@ const App: React.FC = () => {
                 <div className="absolute top-4 left-4 right-4 flex items-center space-x-3 pointer-events-none z-10">
                   <div className="flex items-center space-x-2">
                     <div className="flex space-x-1">
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce delay-0"></span>
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce delay-150"></span>
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce delay-300"></span>
+                      <span className={`w-1.5 h-1.5 rounded-full animate-bounce delay-0 ${activeSkillLabel ? 'bg-purple-500' : 'bg-blue-500'}`}></span>
+                      <span className={`w-1.5 h-1.5 rounded-full animate-bounce delay-150 ${activeSkillLabel ? 'bg-purple-500' : 'bg-blue-500'}`}></span>
+                      <span className={`w-1.5 h-1.5 rounded-full animate-bounce delay-300 ${activeSkillLabel ? 'bg-purple-500' : 'bg-blue-500'}`}></span>
                     </div>
-                    <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{appMode === 'code' ? 'Generating code...' : 'Thinking...'}</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${activeSkillLabel ? 'text-purple-500' : 'text-blue-500'}`}>
+                      {activeSkillLabel ? `${activeSkillLabel}...` : appMode === 'code' ? 'Generating code...' : 'Thinking...'}
+                    </span>
                   </div>
                 </div>
               )}
