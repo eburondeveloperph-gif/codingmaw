@@ -186,6 +186,163 @@ async function getPageContent(session) {
   };
 }
 
+async function hover(session, selector) {
+  await session.page.hover(selector, { timeout: 5000 });
+  await session.page.waitForTimeout(300);
+  session.history.push({ action: 'hover', selector, time: Date.now() });
+  const img = await session.page.screenshot({ type: 'jpeg', quality: 60 });
+  return {
+    url: session.page.url(),
+    title: await session.page.title(),
+    screenshot: img.toString('base64'),
+  };
+}
+
+async function press(session, key, selector) {
+  if (selector) {
+    await session.page.click(selector, { timeout: 5000 });
+  }
+  await session.page.keyboard.press(key);
+  await session.page.waitForTimeout(300);
+  session.history.push({ action: 'press', key, selector, time: Date.now() });
+  const img = await session.page.screenshot({ type: 'jpeg', quality: 60 });
+  return {
+    url: session.page.url(),
+    title: await session.page.title(),
+    screenshot: img.toString('base64'),
+  };
+}
+
+async function selectOption(session, selector, value) {
+  await session.page.selectOption(selector, value, { timeout: 5000 });
+  await session.page.waitForTimeout(300);
+  session.history.push({ action: 'select', selector, value, time: Date.now() });
+  const img = await session.page.screenshot({ type: 'jpeg', quality: 60 });
+  return {
+    url: session.page.url(),
+    title: await session.page.title(),
+    screenshot: img.toString('base64'),
+  };
+}
+
+async function waitFor(session, selector, timeout) {
+  const ms = timeout || 5000;
+  if (selector) {
+    await session.page.waitForSelector(selector, { timeout: ms });
+  } else {
+    await session.page.waitForTimeout(ms);
+  }
+  const img = await session.page.screenshot({ type: 'jpeg', quality: 60 });
+  return {
+    url: session.page.url(),
+    title: await session.page.title(),
+    screenshot: img.toString('base64'),
+  };
+}
+
+async function focus(session, selector) {
+  await session.page.focus(selector, { timeout: 5000 });
+  session.history.push({ action: 'focus', selector, time: Date.now() });
+  const img = await session.page.screenshot({ type: 'jpeg', quality: 60 });
+  return {
+    url: session.page.url(),
+    title: await session.page.title(),
+    screenshot: img.toString('base64'),
+  };
+}
+
+async function dblclick(session, selector) {
+  await session.page.dblclick(selector, { timeout: 5000 });
+  await session.page.waitForTimeout(500);
+  session.history.push({ action: 'dblclick', selector, time: Date.now() });
+  const img = await session.page.screenshot({ type: 'jpeg', quality: 60 });
+  return {
+    url: session.page.url(),
+    title: await session.page.title(),
+    screenshot: img.toString('base64'),
+  };
+}
+
+async function rightclick(session, selector) {
+  await session.page.click(selector, { button: 'right', timeout: 5000 });
+  await session.page.waitForTimeout(500);
+  session.history.push({ action: 'rightclick', selector, time: Date.now() });
+  const img = await session.page.screenshot({ type: 'jpeg', quality: 60 });
+  return {
+    url: session.page.url(),
+    title: await session.page.title(),
+    screenshot: img.toString('base64'),
+  };
+}
+
+async function drag(session, fromSelector, toSelector) {
+  await session.page.dragAndDrop(fromSelector, toSelector, { timeout: 5000 });
+  await session.page.waitForTimeout(500);
+  session.history.push({ action: 'drag', from: fromSelector, to: toSelector, time: Date.now() });
+  const img = await session.page.screenshot({ type: 'jpeg', quality: 60 });
+  return {
+    url: session.page.url(),
+    title: await session.page.title(),
+    screenshot: img.toString('base64'),
+  };
+}
+
+async function clear(session, selector) {
+  await session.page.click(selector, { timeout: 5000 });
+  await session.page.fill(selector, '');
+  session.history.push({ action: 'clear', selector, time: Date.now() });
+  const img = await session.page.screenshot({ type: 'jpeg', quality: 60 });
+  return {
+    url: session.page.url(),
+    title: await session.page.title(),
+    screenshot: img.toString('base64'),
+  };
+}
+
+async function typeSlow(session, selector, text, delay) {
+  const charDelay = delay || 80; // ms between keystrokes, like a real person
+  await session.page.click(selector, { timeout: 5000 });
+  await session.page.fill(selector, ''); // clear first
+  await session.page.type(selector, text, { delay: charDelay });
+  session.history.push({ action: 'type_slow', selector, text: text.replace(/./g, '*'), time: Date.now() });
+  const img = await session.page.screenshot({ type: 'jpeg', quality: 60 });
+  return {
+    url: session.page.url(),
+    title: await session.page.title(),
+    screenshot: img.toString('base64'),
+  };
+}
+
+async function check(session, selector, checked) {
+  if (checked === false) {
+    await session.page.uncheck(selector, { timeout: 5000 });
+  } else {
+    await session.page.check(selector, { timeout: 5000 });
+  }
+  await session.page.waitForTimeout(300);
+  session.history.push({ action: checked === false ? 'uncheck' : 'check', selector, time: Date.now() });
+  const img = await session.page.screenshot({ type: 'jpeg', quality: 60 });
+  return {
+    url: session.page.url(),
+    title: await session.page.title(),
+    screenshot: img.toString('base64'),
+  };
+}
+
+async function upload(session, selector, filePath) {
+  const fileInput = await session.page.$(selector);
+  if (!fileInput) throw new Error(`File input not found: ${selector}`);
+  await fileInput.setInputFiles(filePath);
+  await session.page.waitForTimeout(500);
+  session.history.push({ action: 'upload', selector, time: Date.now() });
+  const img = await session.page.screenshot({ type: 'jpeg', quality: 60 });
+  return {
+    url: session.page.url(),
+    title: await session.page.title(),
+    screenshot: img.toString('base64'),
+  };
+}
+
 async function evaluate(session, script) {
   const result = await session.page.evaluate(script);
   const img = await session.page.screenshot({ type: 'jpeg', quality: 60 });
@@ -239,7 +396,7 @@ async function handleRequest(req, res) {
       service: 'OpenClaw Browser Service',
       sessions: sessions.size,
       maxSessions: MAX_SESSIONS,
-      actions: ['navigate', 'screenshot', 'click', 'type', 'fill', 'submit', 'scroll', 'content', 'evaluate', 'back', 'close'],
+      actions: ['navigate', 'screenshot', 'click', 'dblclick', 'rightclick', 'hover', 'type', 'type_slow', 'fill', 'clear', 'press', 'select', 'check', 'submit', 'scroll', 'focus', 'wait', 'drag', 'upload', 'content', 'evaluate', 'back', 'close'],
     });
     return;
   }
@@ -317,6 +474,77 @@ async function handleRequest(req, res) {
       case '/back': {
         const session = await getOrCreateSession(sessionId);
         result = await goBack(session);
+        break;
+      }
+      case '/hover': {
+        if (!params.selector) return jsonResponse(res, 400, { error: 'selector required' });
+        const session = await getOrCreateSession(sessionId);
+        result = await hover(session, params.selector);
+        break;
+      }
+      case '/press': {
+        if (!params.key) return jsonResponse(res, 400, { error: 'key required (e.g. Enter, Tab, Escape)' });
+        const session = await getOrCreateSession(sessionId);
+        result = await press(session, params.key, params.selector);
+        break;
+      }
+      case '/select': {
+        if (!params.selector || !params.value) return jsonResponse(res, 400, { error: 'selector and value required' });
+        const session = await getOrCreateSession(sessionId);
+        result = await selectOption(session, params.selector, params.value);
+        break;
+      }
+      case '/wait': {
+        const session = await getOrCreateSession(sessionId);
+        result = await waitFor(session, params.selector, params.timeout);
+        break;
+      }
+      case '/focus': {
+        if (!params.selector) return jsonResponse(res, 400, { error: 'selector required' });
+        const session = await getOrCreateSession(sessionId);
+        result = await focus(session, params.selector);
+        break;
+      }
+      case '/dblclick': {
+        if (!params.selector) return jsonResponse(res, 400, { error: 'selector required' });
+        const session = await getOrCreateSession(sessionId);
+        result = await dblclick(session, params.selector);
+        break;
+      }
+      case '/rightclick': {
+        if (!params.selector) return jsonResponse(res, 400, { error: 'selector required' });
+        const session = await getOrCreateSession(sessionId);
+        result = await rightclick(session, params.selector);
+        break;
+      }
+      case '/drag': {
+        if (!params.from || !params.to) return jsonResponse(res, 400, { error: 'from and to selectors required' });
+        const session = await getOrCreateSession(sessionId);
+        result = await drag(session, params.from, params.to);
+        break;
+      }
+      case '/clear': {
+        if (!params.selector) return jsonResponse(res, 400, { error: 'selector required' });
+        const session = await getOrCreateSession(sessionId);
+        result = await clear(session, params.selector);
+        break;
+      }
+      case '/type_slow': {
+        if (!params.selector || !params.text) return jsonResponse(res, 400, { error: 'selector and text required' });
+        const session = await getOrCreateSession(sessionId);
+        result = await typeSlow(session, params.selector, params.text, params.delay);
+        break;
+      }
+      case '/check': {
+        if (!params.selector) return jsonResponse(res, 400, { error: 'selector required' });
+        const session = await getOrCreateSession(sessionId);
+        result = await check(session, params.selector, params.checked);
+        break;
+      }
+      case '/upload': {
+        if (!params.selector || !params.file) return jsonResponse(res, 400, { error: 'selector and file required' });
+        const session = await getOrCreateSession(sessionId);
+        result = await upload(session, params.selector, params.file);
         break;
       }
       case '/close': {

@@ -11,6 +11,15 @@ export interface BrowseCommand {
   text?: string;
   direction?: string;
   script?: string;
+  key?: string;        // press: Enter, Tab, Escape, etc.
+  value?: string;      // select: dropdown option value
+  from?: string;       // drag: source selector
+  to?: string;         // drag: target selector
+  timeout?: number;    // wait: ms to wait
+  delay?: number;      // type_slow: ms between keystrokes
+  checked?: boolean;   // check: true/false
+  file?: string;       // upload: file path
+  fields?: { selector: string; value: string }[]; // fill: multiple fields
 }
 
 export interface BrowseResult {
