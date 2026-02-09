@@ -44,50 +44,80 @@ function authMiddleware(req, res, next) {
   }
 }
 
-// ── Ollama Cloud Proxy (avoids CORS in production) ──────────
+// ── Ollama Cloud Proxy with Fallback (avoids CORS in production) ──────────
 
-app.post('/api/ollama/chat', async (req, res) => {
-  const cloudUrl = process.env.OLLAMA_CLOUD_URL || 'https://api.ollama.com';
-  const apiKey = process.env.OLLAMA_API_KEY || '';
-
-  if (!apiKey) {
-    return res.status(500).json({ error: 'OLLAMA_API_KEY not configured on server' });
-  }
+async function tryOllamaEndpoint(url, headers, body, res) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
 
   try {
-    const upstream = await fetch(`${cloudUrl}/api/chat`, {
+    const upstream = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(req.body),
+      headers,
+      body: JSON.stringify(body),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     if (!upstream.ok) {
       const errText = await upstream.text();
-      return res.status(upstream.status).send(errText);
+      throw new Error(`${upstream.status}: ${errText}`);
     }
 
-    // Stream the response back to the client
+    // Stream response
     res.setHeader('Content-Type', 'application/x-ndjson');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Transfer-Encoding', 'chunked');
 
     const reader = upstream.body.getReader();
-    const push = async () => {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) { res.end(); return; }
-        res.write(Buffer.from(value));
-      }
-    };
-    await push();
-  } catch (err) {
-    console.error('Ollama proxy error:', err);
-    if (!res.headersSent) {
-      res.status(502).json({ error: 'Failed to reach Ollama Cloud' });
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) { res.end(); return true; }
+      res.write(Buffer.from(value));
     }
+  } catch (err) {
+    clearTimeout(timeout);
+    throw err;
+  }
+}
+
+app.post('/api/ollama/chat', async (req, res) => {
+  const cloudUrl = process.env.OLLAMA_CLOUD_URL || 'https://api.ollama.com';
+  const apiKey = process.env.OLLAMA_API_KEY || '';
+  const fallbackUrl = process.env.OLLAMA_FALLBACK_URL || 'http://168.231.78.113:11434';
+
+  // Try primary (Ollama Cloud)
+  if (apiKey) {
+    try {
+      await tryOllamaEndpoint(
+        `${cloudUrl}/api/chat`,
+        { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        req.body,
+        res
+      );
+      return;
+    } catch (err) {
+      console.error('Primary Ollama failed, trying fallback:', err.message);
+    }
+  }
+
+  // Try fallback (self-hosted server)
+  if (!res.headersSent) {
+    try {
+      await tryOllamaEndpoint(
+        `${fallbackUrl}/api/chat`,
+        { 'Content-Type': 'application/json' },
+        req.body,
+        res
+      );
+      return;
+    } catch (err) {
+      console.error('Fallback Ollama failed:', err.message);
+    }
+  }
+
+  if (!res.headersSent) {
+    res.status(502).json({ error: 'All Ollama endpoints failed. Primary and fallback both unreachable.' });
   }
 });
 

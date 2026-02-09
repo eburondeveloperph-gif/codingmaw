@@ -460,27 +460,45 @@ export async function chatStream(
     headers['Authorization'] = `Bearer ${apiKey}`;
   }
 
-  const response = await fetch(fetchUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      model: modelName,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages
-      ],
-      stream: true
-    }),
-    signal
+  const requestBody = JSON.stringify({
+    model: modelName,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...messages
+    ],
+    stream: true
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("Ollama Cloud Response Error:", response.status, errorText);
-    throw new Error(`Ollama Cloud Error (${response.status}): ${errorText || response.statusText}`);
+  let response: Response;
+
+  try {
+    response = await fetch(fetchUrl, { method: 'POST', headers, body: requestBody, signal });
+    if (!response.ok) throw new Error(`${response.status}`);
+  } catch (primaryErr) {
+    // Fallback: in production the proxy handles it; in dev try the self-hosted server
+    const fallbackUrl = import.meta.env.VITE_OLLAMA_FALLBACK_URL?.trim();
+    if (!useProxy && fallbackUrl) {
+      console.warn('Primary Ollama failed, trying fallback:', fallbackUrl);
+      try {
+        response = await fetch(`${fallbackUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestBody,
+          signal
+        });
+        if (!response!.ok) {
+          const errText = await response!.text();
+          throw new Error(`Fallback error (${response!.status}): ${errText}`);
+        }
+      } catch (fallbackErr) {
+        throw new Error(`All Ollama endpoints failed. Primary: ${primaryErr}. Fallback: ${fallbackErr}`);
+      }
+    } else {
+      throw primaryErr;
+    }
   }
 
-  if (!response.body) throw new Error("Ollama Cloud stream failed: No response body");
+  if (!response!.body) throw new Error("Ollama stream failed: No response body");
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
