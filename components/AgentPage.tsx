@@ -104,7 +104,7 @@ const AgentPage: React.FC = () => {
           const updated = [...prev];
           updated[updated.length - 1] = {
             ...updated[updated.length - 1],
-            content: `⚠ Agent error: ${err instanceof Error ? err.message : String(err)}\n\nMake sure the Orbit Agent gateway is running:\n\`\`\`\nollama launch openclaw --model kimi-k2-thinking:cloud\n\`\`\``,
+            content: `⚠ Agent error: ${err instanceof Error ? err.message : String(err)}\n\nMake sure the Orbit Agent service is running.\nCheck the Orbit Endpoint status at the Admin panel.`,
           };
           return updated;
         });
@@ -232,7 +232,7 @@ const AgentPage: React.FC = () => {
                 <div className="mt-8 p-4 bg-red-500/5 border border-red-500/20 rounded-2xl max-w-lg w-full">
                   <p className="text-xs text-red-400 font-bold uppercase tracking-widest mb-2">Agent Gateway Offline</p>
                   <p className="text-xs text-zinc-500">Start the Orbit Agent gateway:</p>
-                  <code className="block mt-2 p-2 bg-black/20 rounded text-[11px] text-zinc-400 font-mono">ollama launch openclaw --model kimi-k2-thinking:cloud</code>
+                  <code className="block mt-2 p-2 bg-black/20 rounded text-[11px] text-zinc-400 font-mono">Check Orbit Endpoint status in Admin Settings</code>
                 </div>
               )}
             </div>

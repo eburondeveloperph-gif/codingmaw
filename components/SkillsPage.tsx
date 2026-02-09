@@ -389,8 +389,8 @@ const SkillsPage: React.FC = () => {
               <h4 className="text-xs font-bold mb-1">Powered by Eburon AI — Orbit Model</h4>
               <p className="text-[11px] text-zinc-500 leading-relaxed">
                 All skills run through the Orbit Model. Agent features (CodeMax, Orbit Assistant) use the
-                OpenClaw gateway with kimi-k2-thinking for advanced reasoning and multi-step task execution.
-                Voice input uses browser speech recognition by default, with Voxtral ASR as an optional upgrade.
+                Orbit Endpoint for advanced reasoning and multi-step task execution.
+                Voice input uses browser speech recognition by default, with Orbit Voice as an optional upgrade.
               </p>
             </div>
           </div>

@@ -203,7 +203,8 @@ Every page MUST have at least ONE ambient background effect:
 When building apps/PWAs, follow the Orbit PWA standard:
 
 ### Required Structure
-```
+
+```text
 ┌─────────────────────────┐
 │  HEADER BAR (fixed top) │  56px, flex between
 │  [←Back]  Title  [Icons]│
@@ -219,6 +220,7 @@ When building apps/PWAs, follow the Orbit PWA standard:
 ```
 
 ### Multi-Page Pattern
+
 - JavaScript-driven view switching (hide/show sections)
 - History API (pushState) for back button
 - Smooth transitions between views
@@ -229,6 +231,7 @@ When building apps/PWAs, follow the Orbit PWA standard:
 ## ABSOLUTE PROHIBITIONS
 
 NEVER output any of these:
+
 - Links to `#` or empty hrefs
 - Buttons with no onclick handler
 - Images with `src=""` or broken src
