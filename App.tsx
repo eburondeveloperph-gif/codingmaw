@@ -970,9 +970,59 @@ const App: React.FC = () => {
           </button>
         )}
 
-        {/* Model Selector Top Bar */}
+        {/* Model Selector Top Bar - icons only on mobile */}
         <header className="h-12 md:h-14 border-b border-zinc-100 dark:border-zinc-800/50 flex items-center px-3 md:px-6 shrink-0 bg-white/50 dark:bg-[#0e0e11]/50 backdrop-blur-md z-20">
-          <div className="flex items-center space-x-4">
+          {/* Mobile: Icon-only compact header */}
+          <div className="flex md:hidden items-center space-x-3 flex-1">
+            <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all" aria-label="Menu">
+              <ChatBubbleLeftRightIcon className="w-5 h-5" />
+            </button>
+            <div className="relative group">
+              <button className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all" aria-label="Model">
+                <CpuChipIcon className={`w-5 h-5 ${activeEburonModel.badge === 'pro' ? 'text-purple-500' : activeEburonModel.badge === 'beta' ? 'text-amber-500' : 'text-blue-500'}`} />
+              </button>
+              <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 rounded-6 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-1">
+                <div className="px-3 py-1.5 text-[9px] font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-100 dark:border-zinc-800 mb-1">Eburon Cloud</div>
+                {EBURON_MODELS.map(m => (
+                  <button key={m.id} onClick={() => { setActiveModel(m.model); setActiveEburonModel(m); }} className={`w-full text-left px-3 py-2.5 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800/50 flex items-center justify-between ${activeModel === m.model && activeEburonModel.id === m.id ? 'bg-zinc-50 dark:bg-zinc-800/30' : ''}`}>
+                    <div className="flex flex-col">
+                      <span className="font-bold">{m.label}</span>
+                      <span className="text-[9px] text-zinc-500">{m.description}</span>
+                    </div>
+                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest shrink-0 ${
+                      m.badge === 'pro' ? 'bg-purple-500/20 text-purple-400' :
+                      m.badge === 'beta' ? 'bg-amber-500/20 text-amber-400' :
+                      m.badge === 'new' ? 'bg-emerald-500/20 text-emerald-400' :
+                      'bg-blue-500/20 text-blue-400'
+                    }`}>{m.badge}</span>
+                  </button>
+                ))}
+                {ollamaModels.length > 0 && (
+                  <>
+                    <div className="px-3 py-1.5 text-[9px] font-bold text-emerald-400 uppercase tracking-widest border-b border-zinc-100 dark:border-zinc-800 my-1">Self-Hosted</div>
+                    {ollamaModels.map(m => (
+                      <button key={m} onClick={() => { setActiveModel(m); setActiveEburonModel({ id: `local-${m}`, label: ollamaAliasMap[m] || m, badge: 'release', model: m, source: 'local', description: 'Local Ollama model' }); }} className="w-full text-left px-3 py-2.5 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800/50 flex items-center justify-between">
+                        <span className="font-bold">{ollamaAliasMap[m] || m}</span>
+                        <SignalIcon className="w-3 h-3 text-emerald-500" />
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="flex-1 text-center">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{appMode === 'code' ? 'Code' : 'Chat'}</span>
+            </div>
+            <button onClick={() => fileInputRef.current?.click()} disabled={isGenerating} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all disabled:opacity-30" aria-label="Attach file">
+              <PhotoIcon className="w-5 h-5" />
+            </button>
+            <button onClick={startRecording} disabled={isGenerating || !sttSupported} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all disabled:opacity-30" aria-label="Voice">
+              <MicrophoneIcon className={`w-5 h-5 ${isRecording ? 'text-red-500 animate-pulse' : 'text-zinc-500'}`} />
+            </button>
+          </div>
+
+          {/* Desktop: Full header */}
+          <div className="hidden md:flex items-center space-x-4">
             <div className="relative group">
               <button className="flex items-center space-x-2 px-3 py-1.5 rounded-6 bg-zinc-50 dark:bg-[#1c1c1f] border border-zinc-200 dark:border-zinc-800 text-xs font-bold tracking-tight hover:border-zinc-400 dark:hover:border-zinc-600 transition-all">
                 <span>{activeEburonModel.label}</span>
@@ -1014,12 +1064,12 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="flex-1 text-center">
+          <div className="hidden md:flex flex-1 text-center">
             <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
               {'Engineering Core v1.3'}
             </h2>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="hidden md:flex items-center space-x-2">
             <button className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-6 transition-all" aria-label="Share">
               <ShareIcon className="w-4 h-4" />
             </button>
@@ -1189,6 +1239,18 @@ const App: React.FC = () => {
                   </div>
                 </div>
               )}
+              {/* Attached files preview */}
+              {pendingImage && (
+                <div className="flex items-center space-x-2 px-2 py-1.5 bg-zinc-100 dark:bg-zinc-800/50 rounded-lg mb-2">
+                  <div className="w-8 h-8 bg-zinc-200 dark:bg-zinc-700 rounded flex items-center justify-center">
+                    <PhotoIcon className="w-4 h-4 text-zinc-500" />
+                  </div>
+                  <span className="text-xs text-zinc-600 dark:text-zinc-400 flex-1 truncate">{pendingImage.mimeType?.includes('pdf') ? 'PDF Document' : 'Image attached'}</span>
+                  <button onClick={() => setPendingImage(null)} className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors" aria-label="Remove attachment">
+                    <XMarkIcon className="w-3.5 h-3.5 text-zinc-500" />
+                  </button>
+                </div>
+              )}
               <textarea
                 value={input}
                 onChange={(e) => { if (!isGenerating) setInput(e.target.value); }}
@@ -1199,69 +1261,71 @@ const App: React.FC = () => {
                 rows={1}
               />
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800/50">
-                <div className="flex items-center space-x-2">
-                  {/* CodeMax Mode Toggle */}
+                {/* Left side: Mode toggles - compact on mobile */}
+                <div className="flex items-center space-x-1 md:space-x-2 overflow-x-auto scrollbar-hide">
                   <button
                     onClick={() => { if (!isGenerating) setAppMode(appMode === 'code' ? 'chat' : 'code'); }}
                     disabled={isGenerating}
-                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${
+                    className={`flex items-center space-x-1 md:space-x-2 px-2 md:px-3 py-1.5 rounded-full border text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${
                       appMode === 'code'
                         ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20'
                         : 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-600/20'
                     }`}
                   >
                     {appMode === 'code' ? <CodeBracketSquareIcon className="w-3.5 h-3.5" /> : <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />}
-                    <span>{appMode === 'code' ? 'Code' : 'Chat'}</span>
+                    <span className="hidden sm:inline">{appMode === 'code' ? 'Code' : 'Chat'}</span>
                   </button>
                   <button
                     onClick={() => { if (!isGenerating) setDeepThink(!deepThink); }}
                     disabled={isGenerating}
-                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${deepThink ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-transparent border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400'}`}
+                    className={`flex items-center space-x-1 md:space-x-2 px-2 md:px-3 py-1.5 rounded-full border text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${deepThink ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-transparent border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400'}`}
                   >
                     <CommandLineIcon className="w-3.5 h-3.5" />
-                    <span>DeepThink</span>
+                    <span className="hidden sm:inline">DeepThink</span>
                   </button>
                   <button
                     onClick={() => { if (!isGenerating) setSearchActive(!searchActive); }}
                     disabled={isGenerating}
-                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${searchActive ? 'bg-amber-600 border-amber-600 text-white shadow-lg shadow-amber-600/20' : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400'}`}
+                    className={`flex items-center space-x-1 md:space-x-2 px-2 md:px-3 py-1.5 rounded-full border text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 ${searchActive ? 'bg-amber-600 border-amber-600 text-white shadow-lg shadow-amber-600/20' : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400'}`}
                   >
                     <MagnifyingGlassIcon className="w-3.5 h-3.5" />
-                    <span>Search</span>
+                    <span className="hidden sm:inline">Search</span>
                   </button>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button onClick={() => fileInputRef.current?.click()} disabled={isGenerating} className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors disabled:opacity-30" aria-label="Upload image">
+                  {/* File attachment button - visible on all sizes */}
+                  <button onClick={() => fileInputRef.current?.click()} disabled={isGenerating} className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors disabled:opacity-30" aria-label="Attach file">
                     <PhotoIcon className="w-5 h-5" />
                   </button>
-                  {/* STT Microphone — works on desktop, mobile APK, iOS, Android WebView */}
+                </div>
+                {/* Right side: Actions */}
+                <div className="flex items-center space-x-1 md:space-x-2">
+                  {/* STT Microphone — always visible, larger touch target on mobile */}
                   {sttSupported && (
                     <>
                       {sttError && (
-                        <span className="text-[10px] text-red-500 max-w-[120px] truncate" title={sttError}>{sttError}</span>
+                        <span className="hidden md:inline text-[10px] text-red-500 max-w-[120px] truncate" title={sttError}>{sttError}</span>
                       )}
                       {isRecording ? (
                         <button
                           onClick={stopRecording}
-                          className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-xl active:scale-90 animate-pulse"
+                          className="p-2.5 md:p-3 min-w-[40px] min-h-[40px] md:min-w-[44px] md:min-h-[44px] flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-xl active:scale-90 animate-pulse"
                           aria-label="Stop recording"
                           title="Tap to stop recording"
                         >
-                          <StopIcon className="w-5 h-5" />
+                          <StopIcon className="w-4 h-4 md:w-5 md:h-5" />
                         </button>
                       ) : isTranscribing ? (
-                        <button disabled className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center bg-purple-500/80 text-white rounded-full opacity-80" aria-label="Transcribing">
-                          <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                        <button disabled className="p-2.5 md:p-3 min-w-[40px] min-h-[40px] md:min-w-[44px] md:min-h-[44px] flex items-center justify-center bg-purple-500/80 text-white rounded-full opacity-80" aria-label="Transcribing">
+                          <ArrowPathIcon className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
                         </button>
                       ) : (
                         <button
                           onClick={startRecording}
                           disabled={isGenerating}
-                          className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-zinc-500 hover:text-purple-500 dark:hover:text-purple-400 transition-colors disabled:opacity-30 active:scale-90"
+                          className="p-2.5 md:p-3 min-w-[40px] min-h-[40px] md:min-w-[44px] md:min-h-[44px] flex items-center justify-center text-zinc-500 hover:text-purple-500 dark:hover:text-purple-400 transition-colors disabled:opacity-30 active:scale-90"
                           aria-label="Voice input"
                           title="Tap to speak"
                         >
-                          <MicrophoneIcon className="w-5 h-5" />
+                          <MicrophoneIcon className="w-4 h-4 md:w-5 md:h-5" />
                         </button>
                       )}
                     </>
@@ -1269,20 +1333,20 @@ const App: React.FC = () => {
                   {isGenerating ? (
                     <button
                       onClick={handleStop}
-                      className="p-2.5 bg-red-600 hover:bg-red-700 text-white rounded-full transition-all shadow-xl active:scale-90 animate-pulse"
+                      className="p-2 md:p-2.5 bg-red-600 hover:bg-red-700 text-white rounded-full transition-all shadow-xl active:scale-90 animate-pulse"
                       aria-label="Stop generation"
                       title="Stop generation"
                     >
-                      <XMarkIcon className="w-5 h-5" />
+                      <XMarkIcon className="w-4 h-4 md:w-5 md:h-5" />
                     </button>
                   ) : (
                     <button
                       onClick={() => searchActive ? handleSearchSend() : handleSend()}
-                      disabled={isSearching || !input.trim()}
-                      className={`p-2.5 text-white disabled:opacity-20 rounded-full transition-all shadow-xl active:scale-90 ${searchActive ? 'bg-amber-600' : 'bg-zinc-900 dark:bg-[#34343a]'}`}
+                      disabled={isSearching || (!input.trim() && !pendingImage)}
+                      className={`p-2 md:p-2.5 text-white disabled:opacity-20 rounded-full transition-all shadow-xl active:scale-90 ${searchActive ? 'bg-amber-600' : 'bg-zinc-900 dark:bg-[#34343a]'}`}
                       aria-label={searchActive ? 'Search and send' : 'Send message'}
                     >
-                      {isSearching ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : searchActive ? <MagnifyingGlassIcon className="w-5 h-5" /> : <ArrowUpIcon className="w-5 h-5" />}
+                      {isSearching ? <ArrowPathIcon className="w-4 h-4 md:w-5 md:h-5 animate-spin" /> : searchActive ? <MagnifyingGlassIcon className="w-4 h-4 md:w-5 md:h-5" /> : <ArrowUpIcon className="w-4 h-4 md:w-5 md:h-5" />}
                     </button>
                   )}
                 </div>
@@ -1525,16 +1589,18 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf" aria-label="File upload" title="File upload" onChange={(e) => {
+      <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.txt,.md,.json,.js,.ts,.jsx,.tsx,.html,.css,.py,.rb,.go,.rs,.java,.cpp,.c,.h,.swift,.kt,.php,.sql,.yaml,.yml,.xml,.csv" aria-label="File upload" title="Upload files" onChange={(e) => {
         const file = e.target.files?.[0];
         if (file) {
           const reader = new FileReader();
           reader.onload = () => {
             const base64 = (reader.result as string).split(',')[1];
-            setPendingImage({ data: base64, mimeType: file.type });
+            setPendingImage({ data: base64, mimeType: file.type || 'application/octet-stream' });
           };
           reader.readAsDataURL(file);
         }
+        // Reset input so same file can be selected again
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }} />
 
 
