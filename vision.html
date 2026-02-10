@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eburon Pro Vision | Government Intelligence</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --belgian-blue: #2e4a7d;
+            --belgian-gold: #f1c40f;
+        }
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .gov-header { background: var(--belgian-blue); border-bottom: 4px solid var(--belgian-gold); }
+        .btn-primary { background: var(--belgian-blue); color: white; transition: all 0.3s; }
+        .btn-primary:hover { background: #1e325a; transform: translateY(-1px); }
+        .result-area { white-space: pre-wrap; background: white; border-left: 5px solid var(--belgian-gold); }
+        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid var(--belgian-blue); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="gov-header p-6 text-white shadow-lg">
+        <div class="container mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight">EBURON PRO VISION</h1>
+                <p class="text-xs opacity-80 uppercase tracking-widest">Founding Chairman: Jo Lernout</p>
+            </div>
+            <div class="text-right hidden md:block">
+                <p class="text-sm font-semibold">Belgian Administrative Intelligence</p>
+                <p class="text-xs">Secure Node: 168.231.78.113</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto mt-10 p-4 max-w-4xl">
+        <div class="bg-white rounded-lg shadow-md p-8">
+            <h2 class="text-xl font-bold mb-6 text-gray-800 border-b pb-2">Image Analysis Portal</h2>
+            
+            <!-- Upload Options -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <!-- File Upload -->
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50 hover:border-blue-400 transition-colors">
+                    <label class="cursor-pointer text-center">
+                        <svg class="w-12 h-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        <span class="text-sm font-medium text-gray-600">Upload Official Document</span>
+                        <input type="file" id="imageInput" class="hidden" accept="image/*">
+                    </label>
+                    <p id="fileName" class="text-xs mt-2 text-blue-600 font-bold"></p>
+                </div>
+
+                <!-- URL Input -->
+                <div class="flex flex-col justify-center">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Remote Image URL</label>
+                    <input type="text" id="urlInput" placeholder="https://example.com/document.jpg" 
+                           class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+                    <p class="text-[10px] text-gray-400 mt-2 italic">Note: Ensure URL allows cross-origin access.</p>
+                </div>
+            </div>
+
+            <!-- Preview -->
+            <div id="previewContainer" class="hidden mb-6">
+                <p class="text-sm font-bold text-gray-500 mb-2">Source Preview:</p>
+                <img id="imagePreview" src="#" alt="Preview" class="max-h-64 rounded border shadow-sm">
+            </div>
+
+            <!-- Submit Button -->
+            <button onclick="analyzeImage()" id="submitBtn" class="btn-primary w-full py-4 rounded-md font-bold text-lg flex justify-center items-center gap-3">
+                <span>EXECUTE ANALYSIS</span>
+                <div id="spinner" class="loading-spinner"></div>
+            </button>
+        </div>
+
+        <!-- Result Area -->
+        <div id="resultContainer" class="hidden mt-8">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="text-lg font-bold text-gray-700">Analysis Report</h3>
+                <span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">Certified Accurate</span>
+            </div>
+            <div id="resultText" class="result-area p-6 rounded shadow-inner text-gray-800 leading-relaxed border"></div>
+        </div>
+    </main>
+
+    <script>
+        const OLLAMA_URL = 'http://168.231.78.113:11434/api/chat';
+        const MODEL_NAME = 'eburon-pro/vision';
+        
+        // HIDDEN DETAILED PROMPT
+        const SYSTEM_PROMPT = `As Eburon Pro Vision, acting under the framework established by Founding Chairman Jo Lernout, perform a high-precision analysis of this image. 
+        1. Identify the nature of the document or image (e.g., ID card, invoice, technical schematic, or scene).
+        2. Provide an exhaustive, detailed description of all visual elements.
+        3. For text: Perform high-fidelity OCR, maintaining structure and regional Belgian context (Dutch/French/German).
+        4. If it's a Belgian administrative document, extract key identifiers like Rijksregisternummer or KBO numbers.
+        Analyze with 100% objectivity and administrative rigor.`;
+
+        let base64Image = "";
+
+        // Handle File Uploads
+        document.getElementById('imageInput').onchange = function(e) {
+            const file = e.target.files[0];
+            document.getElementById('fileName').innerText = file.name;
+            const reader = new FileReader();
+            reader.onload = function() {
+                base64Image = reader.result.split(',')[1];
+                showPreview(reader.result);
+            };
+            reader.readAsDataURL(file);
+        };
+
+        function showPreview(src) {
+            document.getElementById('previewContainer').classList.remove('hidden');
+            document.getElementById('imagePreview').src = src;
+        }
+
+        async function analyzeImage() {
+            const urlInput = document.getElementById('urlInput').value;
+            const submitBtn = document.getElementById('submitBtn');
+            const spinner = document.getElementById('spinner');
+            const resultContainer = document.getElementById('resultContainer');
+            const resultText = document.getElementById('resultText');
+
+            // Reset UI
+            resultContainer.classList.add('hidden');
+            resultText.innerText = "";
+            
+            // If URL is provided, try to fetch it
+            if (urlInput && !base64Image) {
+                try {
+                    const response = await fetch(urlInput);
+                    const blob = await response.blob();
+                    base64Image = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                        reader.readAsDataURL(blob);
+                    });
+                } catch (e) {
+                    alert("Could not load image from URL. It may be blocked by CORS.");
+                    return;
+                }
+            }
+
+            if (!base64Image) {
+                alert("Please upload an image or provide a valid URL.");
+                return;
+            }
+
+            // Start loading
+            submitBtn.disabled = true;
+            spinner.style.display = "block";
+
+            try {
+                const response = await fetch(OLLAMA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: MODEL_NAME,
+                        messages: [
+                            {
+                                role: "user",
+                                content: SYSTEM_PROMPT,
+                                images: [base64Image]
+                            }
+                        ],
+                        stream: false
+                    })
+                });
+
+                const data = await response.json();
+                resultContainer.classList.remove('hidden');
+                resultText.innerText = data.message.content;
+
+            } catch (error) {
+                console.error(error);
+                alert("Error connecting to Eburon Node at 168.231.78.113. Ensure Ollama is running with OLLAMA_ORIGINS=\"*\"");
+            } finally {
+                submitBtn.disabled = false;
+                spinner.style.display = "none";
+                base64Image = ""; // Clear for next run
+            }
+        }
+    </script>
+</body>
+</html>
